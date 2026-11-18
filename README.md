@@ -4,7 +4,7 @@ English · [Deutsch](README.de.md)
 
 A local MCP server that gives your AI agents safe, token-efficient access to the Brave browser you're already logged into.
 
-[![Release](https://img.shields.io/github/v/release/MacStenk/brave-mcp)](https://github.com/MacStenk/brave-mcp/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A5%2022-339933.svg)](package.json)
+[![npm](https://img.shields.io/npm/v/brave-session-mcp)](https://www.npmjs.com/package/brave-session-mcp) [![Release](https://img.shields.io/github/v/release/MacStenk/brave-mcp)](https://github.com/MacStenk/brave-mcp/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A5%2022-339933.svg)](package.json)
 
 **Status:** early, actively maintained by one person · tested on macOS with Brave Nightly; Linux plausible, untested · License: [MIT](LICENSE)
 

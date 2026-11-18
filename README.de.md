@@ -10,7 +10,7 @@ neue Brave-Freigabe.
 
 **Status:** früh, aktiv gepflegt von einer Person · getestet auf macOS mit Brave Nightly; Linux plausibel, ungetestet · Lizenz: [MIT](LICENSE)
 
-[![Release](https://img.shields.io/github/v/release/MacStenk/brave-mcp)](https://github.com/MacStenk/brave-mcp/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A5%2022-339933.svg)](package.json)
+[![npm](https://img.shields.io/npm/v/brave-session-mcp)](https://www.npmjs.com/package/brave-session-mcp) [![Release](https://img.shields.io/github/v/release/MacStenk/brave-mcp)](https://github.com/MacStenk/brave-mcp/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A5%2022-339933.svg)](package.json)
 
 ![Architektur: lokale MCP-Clients verbinden sich über stdio mit einem gemeinsamen Daemon, der eine einzige CDP-Verbindung zum laufenden Brave mit Profil, Anmeldungen und Tabs hält](docs/architecture.png)
 
