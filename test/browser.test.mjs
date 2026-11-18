@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Brave, localEndpoint } from '../src/browser.mjs';
+import { Brave, localEndpoint, API_VERSION } from '../src/browser.mjs';
+import { versionError } from '../src/bridge.mjs';
 
 test('Verbindet ausschließlich den lokalen Debugging-Endpunkt', () => {
   assert.equal(localEndpoint('1234\n/devtools/browser/abc-123\n'), 'ws://127.0.0.1:1234/devtools/browser/abc-123');
@@ -30,4 +31,18 @@ test('Wartezeit wartet nach einer Aktion auf Laden und Beruhigung', async () => 
   await brave.settle(page, 4000);
   assert.deepEqual(seen[0], ['load', 'domcontentloaded', 4000]);
   assert.equal(seen[1][0], 'settle'); assert.ok(seen[1][1] > 3900, `Beruhigungsfenster fast vollständig: ${seen[1][1]}`);
+});
+test('Versionsabgleich meldet nur veraltete Hintergrundprozesse', () => {
+  assert.equal(versionError(undefined), null, 'Alter Client ohne Versionsfeld bleibt erlaubt');
+  assert.equal(versionError(API_VERSION), null);
+  assert.match(versionError(API_VERSION + 1), /veraltet/);
+});
+test('Nach Trennung wird die alte Verbindung verworfen und klar zur Freigabe aufgefordert', async () => {
+  const brave = new Brave();
+  brave.browser = { isConnected: () => false };
+  process.env.BRAVE_USER_DATA_DIR = '/tmp/brave-mcp-ohne-freigabe';
+  try {
+    await assert.rejects(brave.connect(), /Freigabe nicht gefunden/);
+    assert.equal(brave.browser, undefined, 'Veraltete Verbindung wurde verworfen');
+  } finally { delete process.env.BRAVE_USER_DATA_DIR; }
 });

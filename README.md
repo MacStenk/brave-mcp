@@ -21,6 +21,8 @@ nicht einen Paketmanager, der zusätzliche Meldungen auf stdout ausgibt.
 Einmal in Brave Nightly `brave://inspect/#remote-debugging` öffnen und die Freigabe
 für diese Browserinstanz aktivieren. Brave kann die erste Verbindung bestätigen lassen.
 Danach bleibt sie bis zum Browserende oder bewussten Trennen bestehen.
+Nach einem Browserneustart genügt die neue Freigabe in Brave; der gemeinsame Prozess
+verbindet sich beim nächsten Aufruf selbst neu.
 Für ein anderes Brave-Profil `BRAVE_USER_DATA_DIR` auf dessen Benutzerverzeichnis setzen.
 Es werden weder Profile noch Cookies oder Schlüsseldateien kopiert.
 
@@ -115,6 +117,25 @@ ein Screenshot auf 258–476 Tokens — unter einem Drittel eines `brave_read`-A
 mit 6.000 Zeichen (rund 1.500–2.000 Tokens). Der alte Screenshot in Geräteauflösung
 auf Claude kostete dagegen so viel wie gut neun solcher Textreads.
 
+## Arbeitsregeln für Agenten
+
+Erfahrungen aus dem Einsatz; wer dieses MCP nutzt, arbeitet danach:
+
+- Erst die angebotenen Funktionen prüfen, dann über den Browser auf fehlende
+  Oberflächen zugreifen. Ein einzelner MCP deckt eine Anwendung selten vollständig ab.
+- Absenden ist nicht erledigt. Erst sichtbare Belege prüfen: der neue Beitrag im
+  Verlauf, die Bestätigung, die erzeugte Datei. „Angefordert", „ausgeführt" und
+  „gespeichert" sind unterschiedliche Zustände; Schreibaufträge bei unklarem Ausgang
+  nicht blind wiederholen, sondern den Zustand neu lesen.
+- Vor Beginn festlegen, wann die Arbeit fertig ist, und weitere Ausbauten als eigenen
+  Auftrag melden, statt eine Prüfung still zu erweitern.
+
+## Grenzen
+
+Downloads laufen im Browser selbst in Stevens Download-Ordner; dieser Server bildet
+sie bisher nicht als Werkzeug ab und meldet weder Pfad noch Erfolg. Sollte das
+gebraucht werden, ist das ein eigener Ausbauauftrag.
+
 ## Verbindung beenden
 
 ```sh
@@ -124,7 +145,10 @@ node /Users/stevennoack/dev/brave-mcp/src/server.mjs --stop
 Dies trennt den gemeinsamen Zugang für alle Clients, lässt Brave und seine Tabs aber
 geöffnet. Das Beenden eines einzelnen MCP-Clients trennt die gemeinsame Verbindung nicht.
 Nach Änderungen am Servercode den gemeinsamen Prozess einmal mit `--stop` beenden;
-der nächste Client-Aufruf startet ihn mit dem neuen Code.
+der nächste Client-Aufruf startet ihn mit dem neuen Code. Der Client vergleicht seine
+API-Version mit der des Prozesses; ein veralteter Prozess wird ausdrücklich gemeldet,
+statt neue Optionen still zu ignorieren.
+
 Der lokale Unix-Socket liegt in einem Benutzerverzeichnis mit Modus 0700 und ist selbst
 nur für diesen Benutzer zugänglich (0600). Es gibt keinen offenen HTTP-Server für MCP.
 Unterstützt werden derzeit POSIX-Systeme; live geprüft wurde macOS mit Brave Nightly.
@@ -146,7 +170,8 @@ eingebetteten Frame und Screenshots. Zwei getrennte MCP-Clients müssen denselbe
 Prozess und genau eine Browserverbindung melden. Bestehende Tabs werden nicht navigiert.
 Der Test-Tab bleibt zur Sichtprüfung offen; sein Testserver endet mit dem Testprozess.
 
-Stand 18.11.2026: vier lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
+Stand 18.11.2026: sechs lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
 allen neun Werkzeugen erfolgreich, einschließlich Wartezeit nach Klick/Navigation,
-Textblättern per `charOffset` und auf Zielbreite verkleinerter Screenshots. Keine
-Abhängigkeit vom Google-Flow-MCP oder von Stevens Befehls-Bibliothek.
+Textblättern per `charOffset`, auf Zielbreite verkleinerter Screenshots,
+Versionsabgleich und Neuverbindung nach Browserneustart. Keine Abhängigkeit vom
+Google-Flow-MCP oder von Stevens Befehls-Bibliothek.

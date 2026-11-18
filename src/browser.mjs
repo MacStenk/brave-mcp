@@ -24,13 +24,21 @@ const describe = element => ({
   value: element.matches('input:not([type=password]):not([type=hidden]):not([type=file]),textarea,select') ? element.value.slice(0, 250) : undefined,
 });
 
+// 1: alles vor dem Versionsabgleich (18.11.2026). Bei Verhaltensänderungen des Daemon erhöhen.
+export const API_VERSION = 2;
+
 export class Brave {
   pages = new Map(); frames = new Map(); refs = new Map(); connections = 0;
   async connect() {
     if (this.browser?.isConnected()) return this.browser;
-    if (this.browser) throw new Error('Brave wurde getrennt. Lokalen Server mit --stop beenden, danach erneut freigeben.');
-    const endpoint = localEndpoint(await fs.readFile(path.join(profile(), 'DevToolsActivePort'), 'utf8'));
-    this.browser = await chromium.connectOverCDP(endpoint, { timeout: 15000 });
+    // Nach Browserende neu verbinden, statt --stop zu verlangen; die Freigabe erteilt Steven in Brave.
+    this.browser = undefined;
+    const portFile = await fs.readFile(path.join(profile(), 'DevToolsActivePort'), 'utf8').catch(() => {
+      throw new Error('Brave-Freigabe nicht gefunden. brave://inspect/#remote-debugging in Brave öffnen und die Freigabe aktivieren.');
+    });
+    this.browser = await chromium.connectOverCDP(localEndpoint(portFile), { timeout: 15000 }).catch(() => {
+      throw new Error('Brave nicht erreichbar. Freigabe in Brave prüfen oder Browser neu starten; danach erneut aufrufen.');
+    });
     this.connections++;
     return this.browser;
   }
@@ -113,7 +121,7 @@ export class Brave {
     return item.element;
   }
   async call(method, args = {}) {
-    if (method === 'status') return { connected: !!this.browser?.isConnected(), browserConnections: this.connections, daemonPid: process.pid };
+    if (method === 'status') return { connected: !!this.browser?.isConnected(), browserConnections: this.connections, daemonPid: process.pid, apiVersion: API_VERSION };
     if (method === 'tabs') return this.tabs();
     if (method === 'read') return this.read(args);
     if (method === 'click') {

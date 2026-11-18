@@ -3,7 +3,13 @@ import fs from 'node:fs/promises';
 import { openSync, closeSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { Brave } from './browser.mjs';
+import { Brave, API_VERSION } from './browser.mjs';
+
+// Ein älterer Hintergrundprozess darf neue Optionen nicht still ignorieren.
+export function versionError(clientVersion) {
+  if (!Number.isInteger(clientVersion) || clientVersion <= API_VERSION) return null;
+  return `Gemeinsamer Brave-Zugang ist veraltet (API ${API_VERSION}, Client erwartet ${clientVersion}). Server mit --stop neu starten.`;
+}
 
 const uid = process.getuid?.();
 const root = process.env.BRAVE_MCP_RUNTIME_DIR || `/tmp/brave-session-mcp-${uid}`;
@@ -31,8 +37,10 @@ export async function serveBridge() {
       handled = true;
       queue = queue.then(async () => {
         try {
-          const { method, args } = JSON.parse(data.slice(0, data.indexOf('\n')));
+          const { method, args, apiVersion } = JSON.parse(data.slice(0, data.indexOf('\n')));
           if (method === 'stop') { socket.end(JSON.stringify({ result: { stopped: true } }) + '\n', () => void stop()); return; }
+          const outdated = versionError(apiVersion);
+          if (outdated) { socket.end(JSON.stringify({ error: outdated }) + '\n'); return; }
           socket.end(JSON.stringify({ result: await browser.call(method, args) }) + '\n');
         } catch (error) { socket.end(JSON.stringify({ error: error.message }) + '\n'); }
       }).catch(() => socket.destroy());
@@ -51,7 +59,7 @@ function rpc(method, args) {
     const socket = net.createConnection(socketPath);
     let data = '';
     socket.setTimeout(45000, () => { socket.destroy(); reject(new Error('Lokale Browseranfrage hat ihr Zeitlimit überschritten.')); });
-    socket.on('connect', () => socket.write(JSON.stringify({ method, args }) + '\n'));
+    socket.on('connect', () => socket.write(JSON.stringify({ method, args, apiVersion: API_VERSION }) + '\n'));
     socket.on('error', reject);
     socket.on('data', chunk => { data += chunk; if (data.length > 32000000) socket.destroy(new Error('Antwort zu groß.')); });
     socket.on('end', () => { try { const result = JSON.parse(data); result.error ? reject(new Error(result.error)) : resolve(result.result); } catch (error) { reject(error); } });
