@@ -208,7 +208,8 @@ eingebetteten Frame und Screenshots. Zwei getrennte MCP-Clients müssen denselbe
 Prozess und genau eine Browserverbindung melden. Bestehende Tabs werden nicht navigiert.
 Am Ende schließt der Test seinen Tab mit `brave_close`; sein Testserver endet mit dem Testprozess.
 
-Stand 18.11.2026: sechs lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
-allen neun Werkzeugen erfolgreich, einschließlich Wartezeit nach Klick/Navigation,
-Textblättern per `charOffset`, auf Zielbreite verkleinerter Screenshots,
-Versionsabgleich und Neuverbindung nach Browserneustart.
+Stand 18.11.2026: neun lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
+allen zehn Werkzeugen erfolgreich, einschließlich Wartezeit nach Klick/Navigation,
+Textblättern per `charOffset`, Blättern und Filtern der Bedienelemente, Schalterzustand,
+überdeckter Checkbox, Entfernen von Icon-Zeichen, Schließen des eigenen Tabs,
+auf Zielbreite verkleinerter Screenshots, Versionsabgleich und Neuverbindung nach Browserneustart.
