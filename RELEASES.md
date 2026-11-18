@@ -26,6 +26,7 @@ Covered by this promise:
 - Safety guarantees: references bound to their tab and expiring, no page-script
   execution, `brave_close` refusing tabs it did not open, navigation limited to
   HTTP(S) without embedded credentials.
+- The npm package name `brave-session-mcp` and its command of the same name.
 - The command line: `node src/server.mjs`, `--stop`, `block`, `mode`, `control`,
   and the environment variables `BRAVE_USER_DATA_DIR`, `BRAVE_MCP_UPLOAD_DIR`,
   `BRAVE_MCP_PROFILE`, `BRAVE_APP`, `BRAVE_MCP_SETTINGS` and `BRAVE_MCP_CONTROL_PORT`.

@@ -18,16 +18,16 @@ neue Brave-Freigabe.
 
 ## Start
 
-Voraussetzungen: Node.js ab 22, pnpm und Brave Nightly. Kein separat heruntergeladener
+Voraussetzungen: Node.js ab 22 und Brave Nightly. Kein separat heruntergeladener
 Testbrowser und keine Erweiterung nötig.
 
 ```sh
-pnpm install --frozen-lockfile
-node src/server.mjs
+npx -y brave-session-mcp
 ```
 
-Der Server spricht MCP über stdin/stdout. Daher im MCP-Client direkt `node` starten,
-nicht einen Paketmanager, der zusätzliche Meldungen auf stdout ausgibt.
+Im MCP-Client als Befehl `npx` mit den Argumenten `-y brave-session-mcp` eintragen;
+Beispiele liegen in `config/`. Aus einem Klon geht es genauso mit
+`pnpm install --frozen-lockfile` und `node src/server.mjs`.
 
 Einmal in Brave Nightly `brave://inspect/#remote-debugging` öffnen und die Freigabe
 für diese Browserinstanz aktivieren. Brave kann die erste Verbindung bestätigen lassen.
@@ -41,7 +41,7 @@ Es werden weder Profile noch Cookies oder Schlüsseldateien kopiert.
 Ein anderer Ordner lässt sich mit `BRAVE_MCP_UPLOAD_DIR` setzen. Pfade außerhalb,
 `../` und Symlinks, die hinausführen, werden abgewiesen; so kann eine Website einen
 Agenten nicht dazu bringen, SSH-Schlüssel hochzuladen. Der gemeinsame Prozess liest
-die Variable beim Start; nach einer Änderung `node src/server.mjs --stop`.
+die Variable beim Start; nach einer Änderung `npx brave-session-mcp --stop`.
 
 ### Sensible Tabs vor Agenten schützen
 
@@ -52,23 +52,22 @@ Ohne weitere Einstellung sehen Agenten alle Tabs deines Browsers, auch Mail und 
 
 **Steuerseite:** Solange brave-mcp läuft, <http://127.0.0.1:47821/> öffnen und als Lesezeichen speichern. Dort schaltest du den Modus um, siehst die in deinen Tabs offenen Seiten mit einem Knopf **Block** und pflegst die Sperrliste. Änderungen nimmt sie nur von sich selbst an (Host, Herkunft und ein Schlüssel pro Start werden geprüft), Agenten können sie nicht öffnen.
 
-**Terminal**, zum Beispiel mit `alias brave-mcp="node /pfad/zu/brave-mcp/src/server.mjs"`:
+**Terminal:**
 
 ```sh
-brave-mcp block add bank.example   # sperren; ohne Domain: der vordere Tab in Brave (macOS)
-brave-mcp block remove bank.example
-brave-mcp block                    # Liste zeigen
-brave-mcp mode agent               # oder: all; ohne Angabe: anzeigen
+npx brave-session-mcp block add bank.example   # sperren; ohne Domain: der vordere Tab in Brave (macOS)
+npx brave-session-mcp block remove bank.example
+npx brave-session-mcp block                    # Liste zeigen
+npx brave-session-mcp mode agent               # oder: all; ohne Angabe: anzeigen
 ```
 
 Die Einstellungen liegen in `~/.config/brave-mcp/settings.json` (verschieben mit `BRAVE_MCP_SETTINGS`) und werden bei jeder Agenten-Aktion neu gelesen. Agenten haben kein Werkzeug, um sie zu ändern. Ohne gespeicherten Modus startet `BRAVE_MCP_PROFILE=Agent` im Agent-Modus. `BRAVE_MCP_CONTROL_PORT` ändert den Port, `BRAVE_APP` nennt die zu öffnende Brave-App (Standard `Brave Browser Nightly`).
 
 ## Clients
 
-Die Beispiele in `config/` enthalten Platzhalter-Pfade; beim Übernehmen den absoluten
-Pfad des eigenen Klons einsetzen. Startet ein Client `node` nicht, weil er keine
-PATH-Umgebung erbt (bei grafischen Apps üblich), den absoluten Node-Pfad aus
-`which node` als command eintragen.
+Die Beispiele in `config/` starten das veröffentlichte Paket mit `npx`. Startet ein
+Client `npx` nicht, weil er keine PATH-Umgebung erbt (bei grafischen Apps üblich),
+den absoluten Pfad aus `which npx` als command eintragen.
 
 - Claude Desktop und andere lokale Clients mit `mcpServers`: Eintrag aus `config/mcp.json` übernehmen.
 - Codex und andere TOML-Clients: `config/codex.toml` als Beispiel verwenden.
@@ -187,7 +186,7 @@ gebraucht werden, ist das ein eigener Ausbauauftrag.
 ## Verbindung beenden
 
 ```sh
-node src/server.mjs --stop
+npx brave-session-mcp --stop
 ```
 
 Dies trennt den gemeinsamen Zugang für alle Clients, lässt Brave und seine Tabs aber

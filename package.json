@@ -1,8 +1,16 @@
 {
   "name": "brave-session-mcp",
   "version": "0.2.0",
-  "private": true,
+  "description": "MCP server that gives local AI agents safe, token-efficient access to the Brave browser you are already logged into.",
+  "license": "MIT",
+  "author": "Steven Noack",
+  "repository": { "type": "git", "url": "git+https://github.com/MacStenk/brave-mcp.git" },
+  "homepage": "https://github.com/MacStenk/brave-mcp#readme",
+  "bugs": "https://github.com/MacStenk/brave-mcp/issues",
+  "keywords": ["mcp", "model-context-protocol", "brave", "browser", "cdp", "ai-agents", "claude", "codex"],
   "type": "module",
+  "bin": { "brave-session-mcp": "src/server.mjs" },
+  "files": ["src", "README.de.md", "CHANGELOG.md", "SECURITY.md"],
   "engines": { "node": ">=22" },
   "scripts": { "start": "node src/server.mjs", "test": "node --test test/*.test.mjs", "release:check": "node scripts/check-release.mjs" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "playwright-core": "^1.50.0", "zod": "^3.24.0" }

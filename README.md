@@ -28,11 +28,10 @@ Not for you when you need headless cross-platform CI automation, or a full DevTo
 ## Quick start
 
 ```sh
-pnpm install --frozen-lockfile
-node src/server.mjs
+npx -y brave-session-mcp
 ```
 
-Requires Node ≥ 22, pnpm and Brave Nightly (remote debugging enabled once, see below). Install means `git clone` — this is not published to a package registry. Regular Brave instead of Nightly is untested: set `BRAVE_USER_DATA_DIR` to its profile directory and `BRAVE_APP` to its app name (see below).
+Requires Node ≥ 22 and Brave Nightly (remote debugging enabled once, see below). In an MCP client, set the command to `npx` with the arguments `-y brave-session-mcp`; examples are in `config/`. From a clone, `pnpm install --frozen-lockfile` and `node src/server.mjs` work the same. Regular Brave instead of Nightly is untested: set `BRAVE_USER_DATA_DIR` to its profile directory and `BRAVE_APP` to its app name (see below).
 
 *Unofficial community project — Brave is a trademark of Brave Software, Inc.; this tool is not affiliated with or endorsed by them.*
 
@@ -56,7 +55,7 @@ files are ever copied.
 `BRAVE_MCP_UPLOAD_DIR` to use another one. Paths outside it, `../` tricks and
 symlinks pointing out of it are refused, so a page cannot talk an agent into
 uploading your SSH keys. The shared background process reads the variable when it
-starts; after changing it, run `node src/server.mjs --stop`.
+starts; after changing it, run `npx brave-session-mcp --stop`.
 
 ### Keeping agents away from sensitive tabs
 
@@ -67,23 +66,22 @@ By default agents see every tab of your browser, including mail and banking. Two
 
 **Control page:** while brave-mcp runs, open <http://127.0.0.1:47821/> and bookmark it. It switches the mode, lists the sites open in your tabs with a **Block** button, and manages the blocklist. It only accepts changes from itself (host, origin and a per-start key are checked), and agents cannot open it.
 
-**Terminal**, for example with `alias brave-mcp="node /path/to/brave-mcp/src/server.mjs"`:
+**Terminal:**
 
 ```sh
-brave-mcp block add bank.example   # block; without a domain: the front tab in Brave (macOS)
-brave-mcp block remove bank.example
-brave-mcp block                    # show the list
-brave-mcp mode agent               # or: all; without argument: show
+npx brave-session-mcp block add bank.example   # block; without a domain: the front tab in Brave (macOS)
+npx brave-session-mcp block remove bank.example
+npx brave-session-mcp block                    # show the list
+npx brave-session-mcp mode agent               # or: all; without argument: show
 ```
 
 Settings live in `~/.config/brave-mcp/settings.json` (`BRAVE_MCP_SETTINGS` to move it) and are read on every agent action. Agents have no tool to change them. Without a saved mode, `BRAVE_MCP_PROFILE=Agent` starts in agent mode. `BRAVE_MCP_CONTROL_PORT` changes the port, `BRAVE_APP` names the Brave app to open (default `Brave Browser Nightly`).
 
 ## Clients
 
-The examples in `config/` contain placeholder paths; substitute the absolute
-path of your own clone. If a client cannot start `node` because it inherits no
-PATH environment (common for GUI apps), use the absolute node path from
-`which node` as the command.
+The examples in `config/` start the published package with `npx`. If a client
+cannot start `npx` because it inherits no PATH environment (common for GUI
+apps), use the absolute path from `which npx` as the command.
 
 - Claude Desktop and other local clients using `mcpServers`: copy the entry from `config/mcp.json`.
 - Codex and other TOML clients: use `config/codex.toml` as the example.
@@ -199,7 +197,7 @@ If that is needed, it is its own follow-up task.
 ## Stopping the shared connection
 
 ```sh
-node src/server.mjs --stop
+npx brave-session-mcp --stop
 ```
 
 This disconnects the shared access for all clients but leaves Brave and its

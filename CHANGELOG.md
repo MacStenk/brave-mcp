@@ -11,6 +11,8 @@ promises and which versions get fixes.
 
 ### Added
 
+- Published on npm as `brave-session-mcp`: `npx -y brave-session-mcp` replaces
+  cloning; the config examples use it.
 - Agent mode: every tool sees only the tabs of one Brave profile, chosen by the
   name you gave it in Brave, and `brave_open` opens tabs there. macOS only for now.
 - Blocklist: blocked sites are invisible to agents and cannot be opened by them,
