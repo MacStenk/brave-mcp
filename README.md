@@ -1,9 +1,36 @@
 # Brave Session MCP
 
-Eigenständiger lokaler MCP-Server für den bereits geöffneten Brave Nightly.
-Er verwendet die offenen Tabs und bestehenden Anmeldungen des Browserprofils. Ein gemeinsamer
-Hintergrundprozess hält die Debugging-Verbindung für alle lokalen MCP-Clients offen.
-Ein neuer Agent braucht dadurch nicht bei jeder Anfrage eine neue Brave-Freigabe.
+A local MCP server that gives your AI agents safe, token-efficient access to the Brave browser you're already logged into.
+
+**Status:** early, actively maintained by one person · tested on macOS with Brave Nightly; Linux plausible, untested · License: [MIT](LICENSE)
+
+## What is this?
+
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io) is the open standard AI applications use to call external tools. This server exposes your already-running Brave Nightly — its open tabs and its logged-in sessions. Agents read pages, click, fill forms, upload files and take screenshots inside the real browser profile, not a disposable automation profile. One shared background process holds the debugging connection open for every local MCP client, so a new agent never triggers a new Brave permission prompt.
+
+## Why this over the alternatives?
+
+The official [@playwright/mcp](https://github.com/microsoft/playwright-mcp) and browser agents such as browser-use drive their own browser instance with a fresh profile — your logins are missing there and every agent spins up its own browser. This server takes the opposite trade-off:
+
+- **Your real session** — agents work where you are already logged in; nothing to re-authenticate.
+- **One shared connection** — a single background daemon serves all local MCP clients over one CDP connection.
+- **Token-efficient by design** — capped reads, paged text (`charOffset`), waited actions (`wait`), CSS-scaled screenshots; measured numbers in the [Tokenverbrauch](#tokenverbrauch) section below.
+- **Small attack surface** — no arbitrary page-script execution; page content is treated as untrusted data.
+
+Not for you when you need headless cross-platform CI automation — Playwright MCP is the better fit there.
+
+## Quick start
+
+```sh
+pnpm install --frozen-lockfile
+node src/server.mjs
+```
+
+Requires Node ≥ 22, pnpm and Brave Nightly (remote debugging enabled once, see below).
+
+---
+
+Betrieb und alle Details auf Deutsch:
 
 ## Start
 
