@@ -20,6 +20,8 @@ promises and which versions get fixes.
 
 ### Changed
 
+- Tool descriptions, parameter descriptions and error messages are now in English
+  (they were German). Agents matching on the old German error text need to update.
 - The README is now in English; the German version lives in `README.de.md`.
 
 ## [0.2.0] - 2026-11-18

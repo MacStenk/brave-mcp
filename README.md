@@ -16,14 +16,14 @@ A local MCP server that gives your AI agents safe, token-efficient access to the
 
 ## Why this over the alternatives?
 
-The official [@playwright/mcp](https://github.com/microsoft/playwright-mcp) and browser agents such as browser-use drive their own browser instance with a fresh profile — your logins are missing there and every agent spins up its own browser. This server takes the opposite trade-off:
+Attaching an agent to your logged-in browser is no longer unique: [@playwright/mcp](https://github.com/microsoft/playwright-mcp) can connect to existing Chrome or Edge tabs through its browser extension (`--extension`), and [Chrome DevTools MCP](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session) attaches to a running Chrome with `--autoConnect` (Chrome 144+). Use those if you live in Chrome. This server is the Brave-first option and makes different trade-offs:
 
-- **Your real session** — agents work where you are already logged in; nothing to re-authenticate.
-- **One shared connection** — a single background daemon serves all local MCP clients over one CDP connection.
-- **Token-efficient by design** — capped reads, paged text (`charOffset`), waited actions (`wait`), CSS-scaled screenshots; measured numbers in the [Token usage](#token-usage) section below.
-- **Small attack surface** — no arbitrary page-script execution; page content is treated as untrusted data.
+- **Brave, your real profile** — works with Brave Nightly (and regular Brave via `BRAVE_USER_DATA_DIR`) where you are already logged in; no extension to install, no profile copied.
+- **One shared connection for all agents** — a single background process serves every local MCP client over one CDP connection, so a second agent does not trigger another permission prompt.
+- **Token-efficient by design** — capped and paged text (`charOffset`), paged and filterable controls (`controlFilter`), waited actions (`wait`), icon characters stripped, CSS-scaled screenshots; measured numbers in the [Token usage](#token-usage) section below.
+- **Small attack surface** — ten narrow tools and no page-script execution; uploads only from one folder; agents can close only tabs they opened; page content is treated as untrusted data.
 
-Not for you when you need headless cross-platform CI automation — Playwright MCP is the better fit there.
+Not for you when you need headless cross-platform CI automation, or a full DevTools toolbox (network, performance traces, console) — Playwright MCP and Chrome DevTools MCP are the better fit there.
 
 ## Quick start
 

@@ -14,13 +14,13 @@ test('Elementreferenzen können nicht auf einen anderen Tab angewendet werden', 
   const brave = new Brave();
   brave.page = async () => ({});
   brave.refs.set('ref-a', { tabId: 'tab-a', created: Date.now() });
-  await assert.rejects(brave.element('tab-b', 'ref-a'), /tabfremde/);
+  await assert.rejects(brave.element('tab-b', 'ref-a'), /another tab/);
 });
 test('Veraltete Referenzen werden vor jeder Browseraktion abgewiesen', async () => {
   const brave = new Brave();
   brave.page = async () => ({});
   brave.refs.set('ref-a', { tabId: 'tab-a', created: 0 });
-  await assert.rejects(brave.element('tab-a', 'ref-a'), /Veraltete/);
+  await assert.rejects(brave.element('tab-a', 'ref-a'), /Stale reference/);
 });
 test('Wartezeit wartet nach einer Aktion auf Laden und Beruhigung', async () => {
   const brave = new Brave();
@@ -38,14 +38,14 @@ test('Wartezeit wartet nach einer Aktion auf Laden und Beruhigung', async () => 
 test('Versionsabgleich meldet nur veraltete Hintergrundprozesse', () => {
   assert.equal(versionError(undefined), null, 'Alter Client ohne Versionsfeld bleibt erlaubt');
   assert.equal(versionError(API_VERSION), null);
-  assert.match(versionError(API_VERSION + 1), /veraltet/);
+  assert.match(versionError(API_VERSION + 1), /outdated/);
 });
 test('Nach Trennung wird die alte Verbindung verworfen und klar zur Freigabe aufgefordert', async () => {
   const brave = new Brave();
   brave.browser = { isConnected: () => false };
   process.env.BRAVE_USER_DATA_DIR = '/tmp/brave-mcp-ohne-freigabe';
   try {
-    await assert.rejects(brave.connect(), /Freigabe nicht gefunden/);
+    await assert.rejects(brave.connect(), /remote debugging not found/);
     assert.equal(brave.browser, undefined, 'Veraltete Verbindung wurde verworfen');
   } finally { delete process.env.BRAVE_USER_DATA_DIR; }
 });
@@ -70,7 +70,7 @@ test('Tabs des Nutzers lassen sich nicht schließen', async () => {
   const brave = new Brave();
   let closed = false;
   brave.page = async () => ({ close: async () => { closed = true; } });
-  await assert.rejects(brave.call('close', { tabId: 'tab-nutzer' }), /Nur mit brave_open/);
+  await assert.rejects(brave.call('close', { tabId: 'tab-nutzer' }), /Only tabs opened with brave_open/);
   assert.equal(closed, false);
 });
 test('Uploads nur aus dem Upload-Ordner, auch nicht über Symlinks oder ../', async () => {
@@ -84,7 +84,7 @@ test('Uploads nur aus dem Upload-Ordner, auch nicht über Symlinks oder ../', as
     const [ok] = await uploadPaths(['bild.png'], root);
     assert.equal(ok, await fs.realpath(path.join(root, 'bild.png')));
     for (const file of [path.join(tmp, 'geheim.txt'), '../geheim.txt', 'link.txt']) {
-      await assert.rejects(uploadPaths([file], root), /nur aus/, `abgewiesen: ${file}`);
+      await assert.rejects(uploadPaths([file], root), /only allowed from/, `rejected: ${file}`);
     }
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
 });

@@ -8,7 +8,7 @@ import { Brave, API_VERSION } from './browser.mjs';
 // Ein älterer Hintergrundprozess darf neue Optionen nicht still ignorieren.
 export function versionError(clientVersion) {
   if (!Number.isInteger(clientVersion) || clientVersion <= API_VERSION) return null;
-  return `Gemeinsamer Brave-Zugang ist veraltet (API ${API_VERSION}, Client erwartet ${clientVersion}). Server mit --stop neu starten.`;
+  return `Shared Brave connection is outdated (API ${API_VERSION}, client expects ${clientVersion}). Restart with node src/server.mjs --stop.`;
 }
 
 const uid = process.getuid?.();
@@ -16,10 +16,10 @@ const root = process.env.BRAVE_MCP_RUNTIME_DIR || `/tmp/brave-session-mcp-${uid}
 const socketPath = `${root}/bridge.sock`;
 
 async function directory() {
-  if (uid === undefined) throw new Error('Gemeinsamer lokaler Zugang benötigt derzeit macOS oder Linux.');
+  if (uid === undefined) throw new Error('Shared local access currently requires macOS or Linux.');
   await fs.mkdir(root, { recursive: true, mode: 0o700 });
   const stat = await fs.lstat(root);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== uid || (stat.mode & 0o077)) throw new Error('Laufzeitverzeichnis muss Deinem Benutzer gehören und Modus 0700 haben.');
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== uid || (stat.mode & 0o077)) throw new Error('Runtime directory must be owned by your user and have mode 0700.');
 }
 
 export async function serveBridge() {
@@ -58,10 +58,10 @@ function rpc(method, args) {
   return new Promise((resolve, reject) => {
     const socket = net.createConnection(socketPath);
     let data = '';
-    socket.setTimeout(45000, () => { socket.destroy(); reject(new Error('Lokale Browseranfrage hat ihr Zeitlimit überschritten.')); });
+    socket.setTimeout(45000, () => { socket.destroy(); reject(new Error('Local browser request timed out.')); });
     socket.on('connect', () => socket.write(JSON.stringify({ method, args, apiVersion: API_VERSION }) + '\n'));
     socket.on('error', reject);
-    socket.on('data', chunk => { data += chunk; if (data.length > 32000000) socket.destroy(new Error('Antwort zu groß.')); });
+    socket.on('data', chunk => { data += chunk; if (data.length > 32000000) socket.destroy(new Error('Response too large.')); });
     socket.on('end', () => { try { const result = JSON.parse(data); result.error ? reject(new Error(result.error)) : resolve(result.result); } catch (error) { reject(error); } });
   });
 }
@@ -73,7 +73,7 @@ export async function request(method, args = {}) {
     if (!['ENOENT', 'ECONNREFUSED'].includes(error.code)) throw error;
     if (error.code === 'ECONNREFUSED') {
       const stat = await fs.lstat(socketPath);
-      if (!stat.isSocket() || stat.uid !== uid) throw new Error('Unbekannte Socketdatei.');
+      if (!stat.isSocket() || stat.uid !== uid) throw new Error('Unknown socket file.');
       await fs.unlink(socketPath);
     }
     if (method === 'stop') return { stopped: true };
@@ -84,5 +84,5 @@ export async function request(method, args = {}) {
   for (let i = 0; i < 50; i++) {
     try { return await rpc(method, args); } catch (error) { if (!['ENOENT', 'ECONNREFUSED'].includes(error.code)) throw error; await new Promise(resolve => setTimeout(resolve, 100)); }
   }
-  throw new Error('Lokaler Brave-Zugang konnte nicht gestartet werden.');
+  throw new Error('Could not start the local Brave connection.');
 }

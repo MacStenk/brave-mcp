@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 export function localEndpoint(portFile) {
   const [port, route, ...rest] = portFile.trim().split(/\r?\n/);
-  if (rest.length || !/^\d+$/.test(port) || +port < 1 || +port > 65535 || !/^\/devtools\/browser\/[\w-]+$/.test(route)) throw new Error('Ungültige Brave-Debugging-Adresse.');
+  if (rest.length || !/^\d+$/.test(port) || +port < 1 || +port > 65535 || !/^\/devtools\/browser\/[\w-]+$/.test(route)) throw new Error('Invalid Brave debugging address.');
   return `ws://127.0.0.1:${+port}${route}`;
 }
 
@@ -72,12 +72,12 @@ export function uploadRoot() {
   return process.env.BRAVE_MCP_UPLOAD_DIR || path.join(os.homedir(), 'Downloads');
 }
 export async function uploadPaths(files, root = uploadRoot()) {
-  const base = await fs.realpath(root).catch(() => { throw new Error(`Upload-Ordner ${root} existiert nicht.`); });
+  const base = await fs.realpath(root).catch(() => { throw new Error(`Upload folder ${root} does not exist.`); });
   return Promise.all(files.map(async file => {
     // Relative Pfade gelten relativ zum Upload-Ordner; realpath löst Symlinks auf, damit kein Link hinausführt.
-    const real = await fs.realpath(path.resolve(base, file)).catch(() => { throw new Error(`Datei nicht gefunden: ${file}`); });
+    const real = await fs.realpath(path.resolve(base, file)).catch(() => { throw new Error(`File not found: ${file}`); });
     const rel = path.relative(base, real);
-    if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error(`Uploads sind nur aus ${base} erlaubt (BRAVE_MCP_UPLOAD_DIR).`);
+    if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error(`Uploads are only allowed from ${base} (BRAVE_MCP_UPLOAD_DIR).`);
     return real;
   }));
 }
@@ -89,10 +89,10 @@ export class Brave {
     // Nach Browserende neu verbinden, statt --stop zu verlangen; die Freigabe erteilt der Nutzer in Brave.
     this.browser = undefined;
     const portFile = await fs.readFile(path.join(profile(), 'DevToolsActivePort'), 'utf8').catch(() => {
-      throw new Error('Brave-Freigabe nicht gefunden. brave://inspect/#remote-debugging in Brave öffnen und die Freigabe aktivieren.');
+      throw new Error('Brave remote debugging not found. Open brave://inspect/#remote-debugging in Brave and enable it.');
     });
     this.browser = await chromium.connectOverCDP(localEndpoint(portFile), { timeout: 15000 }).catch(() => {
-      throw new Error('Brave nicht erreichbar. Freigabe in Brave prüfen oder Browser neu starten; danach erneut aufrufen.');
+      throw new Error('Brave not reachable. Check remote debugging in Brave or restart the browser, then try again.');
     });
     this.connections++;
     return this.browser;
@@ -111,14 +111,14 @@ export class Brave {
   async page(tabId) {
     await this.tabs();
     const page = this.pages.get(tabId);
-    if (!page || page.isClosed()) throw new Error('Tab nicht mehr verfügbar; brave_tabs erneut aufrufen.');
+    if (!page || page.isClosed()) throw new Error('Tab no longer available; call brave_tabs again.');
     return page;
   }
   async frame(tabId, frameId) {
     const page = await this.page(tabId);
     if (!frameId) return { page, frame: page.mainFrame() };
     const frame = this.frames.get(frameId);
-    if (!frame || !page.frames().includes(frame)) throw new Error('Frame gehört nicht zu diesem Tab oder wurde neu geladen.');
+    if (!frame || !page.frames().includes(frame)) throw new Error('Frame does not belong to this tab or was reloaded.');
     return { page, frame };
   }
   async read({ tabId, frameId, maxChars = 6000, charOffset = 0, controlOffset = 0, maxControls = 200, controlFilter }) {
@@ -176,10 +176,10 @@ export class Brave {
   async element(tabId, ref, upload = false) {
     await this.page(tabId);
     const item = this.refs.get(ref);
-    if (!item || item.tabId !== tabId || Date.now() - item.created > 600000) throw new Error('Veraltete oder tabfremde Referenz; brave_read erneut aufrufen.');
-    if (!item.frame.page().frames().includes(item.frame) || (!(await item.element.isVisible()) && !(upload && item.description.type === 'file'))) throw new Error('Element ist nicht mehr sichtbar.');
+    if (!item || item.tabId !== tabId || Date.now() - item.created > 600000) throw new Error('Stale reference or reference from another tab; call brave_read again.');
+    if (!item.frame.page().frames().includes(item.frame) || (!(await item.element.isVisible()) && !(upload && item.description.type === 'file'))) throw new Error('Element is no longer visible.');
     const current = await item.element.evaluate(describe);
-    if (current.tag !== item.description.tag || current.label !== item.description.label) throw new Error('Element hat sich verändert; brave_read erneut aufrufen.');
+    if (current.tag !== item.description.tag || current.label !== item.description.label) throw new Error('Element has changed; call brave_read again.');
     return item.element;
   }
   async call(method, args = {}) {
@@ -212,7 +212,7 @@ export class Brave {
     if (method === 'fill') { await (await this.element(args.tabId, args.ref)).fill(args.text, { timeout: 8000 }); return { filled: true }; }
     if (method === 'upload') {
       const element = await this.element(args.tabId, args.ref, true);
-      if (!(await element.evaluate(e => e.matches('input[type=file]')))) throw new Error('Referenz ist kein Datei-Uploadfeld.');
+      if (!(await element.evaluate(e => e.matches('input[type=file]')))) throw new Error('Reference is not a file upload field.');
       await element.setInputFiles(await uploadPaths(args.files), { timeout: 10000 }); return { uploaded: args.files.length };
     }
     if (method === 'screenshot') {
@@ -221,7 +221,7 @@ export class Brave {
     }
     if (method === 'navigate' || method === 'open') {
       const url = new URL(args.url);
-      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Nur HTTP(S)-Adressen ohne eingebettete Zugangsdaten.');
+      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Only HTTP(S) URLs without embedded credentials.');
       const page = method === 'open' ? await (await this.connect()).contexts()[0].newPage() : await this.page(args.tabId);
       if (method === 'open') this.opened.add(page);
       await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -231,12 +231,12 @@ export class Brave {
     if (method === 'close') {
       // Nur Tabs schließen, die ein Agent selbst mit brave_open geöffnet hat; Tabs des Nutzers bleiben unberührt.
       const page = await this.page(args.tabId);
-      if (!this.opened.has(page)) throw new Error('Nur mit brave_open geöffnete Tabs können geschlossen werden.');
+      if (!this.opened.has(page)) throw new Error('Only tabs opened with brave_open can be closed.');
       await page.close();
       this.opened.delete(page);
       for (const [id, item] of this.pages) if (item === page) this.pages.delete(id);
       return { closed: true };
     }
-    throw new Error('Unbekannte Browserfunktion.');
+    throw new Error('Unknown browser function.');
   }
 }
