@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Brave, localEndpoint, API_VERSION } from '../src/browser.mjs';
+import { Brave, localEndpoint, API_VERSION, pageControls } from '../src/browser.mjs';
 import { versionError } from '../src/bridge.mjs';
 
 test('Verbindet ausschließlich den lokalen Debugging-Endpunkt', () => {
@@ -45,4 +45,18 @@ test('Nach Trennung wird die alte Verbindung verworfen und klar zur Freigabe auf
     await assert.rejects(brave.connect(), /Freigabe nicht gefunden/);
     assert.equal(brave.browser, undefined, 'Veraltete Verbindung wurde verworfen');
   } finally { delete process.env.BRAVE_USER_DATA_DIR; }
+});
+test('Bedienelemente hinter vielen Navigationslinks bleiben über Filter und Blättern erreichbar', () => {
+  const nav = Array.from({ length: 250 }, (_, i) => ({ label: `Menü ${i}` }));
+  const items = [...nav, { label: '', context: '"Bot Fight"-Modus Erkennen und fordern Sie Bot-Traffic heraus.', role: 'switch', checked: true }];
+  const first = pageControls(items);
+  assert.equal(first.page.length, 200);
+  assert.equal(first.controlsTotal, 251);
+  assert.equal(first.nextControlOffset, 200, 'Kürzung wird gemeldet');
+  const rest = pageControls(items, { controlOffset: first.nextControlOffset });
+  assert.equal(rest.page.at(-1).role, 'switch');
+  assert.equal(rest.nextControlOffset, null);
+  const filtered = pageControls(items, { controlFilter: 'bot fight' });
+  assert.deepEqual(filtered.page.map(item => item.role), ['switch'], 'Filter durchsucht auch den Kontext unbeschrifteter Schalter');
+  assert.equal(filtered.controlsTotal, 1);
 });

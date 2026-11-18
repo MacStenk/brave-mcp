@@ -78,8 +78,8 @@ Verzeichniseintrag angelegt. Lizenz: MIT, siehe LICENSE.
 | --- | --- |
 | `brave_status` | Gemeinsame Verbindung und Prozess prüfen |
 | `brave_tabs` | Offene Tabs mit stabilen IDs auflisten |
-| `brave_read` | Sichtbaren Text, Bedienelemente und Frames lesen; mit `charOffset` blätterbar |
-| `brave_click` | Ein gelesenes Element anklicken, optional mit Wartezeit |
+| `brave_read` | Sichtbaren Text, Bedienelemente und Frames lesen; Text mit `charOffset`, Bedienelemente mit `controlOffset` blätterbar, mit `controlFilter` durchsuchbar |
+| `brave_click` | Ein gelesenes Element anklicken, optional mit Wartezeit; Checkboxen und Schalter melden danach ihren Zustand |
 | `brave_fill` | Ein gelesenes Eingabefeld ausfüllen |
 | `brave_upload` | Lokale Dateien in einem Uploadfeld auswählen |
 | `brave_screenshot` | Screenshot des Tabs in CSS-Auflösung, optional auf Zielbreite verkleinert |
@@ -94,6 +94,12 @@ kurzen Beruhigungsphase zurück; ohne `wait` kehrt die Aktion sofort zurück.
 Eingebettete Anwendungen lassen sich anschließend über die zurückgegebenen Frame-IDs
 lesen. Aktionen verwenden Referenzen auf konkrete DOM-Elemente, gebunden an ihren Tab.
 Veränderte, abgelaufene und tabfremde Referenzen werden zurückgewiesen.
+Bedienelemente: `controlsTotal` nennt alle Treffer, `nextControlOffset` die nächste
+Seite (sonst `null`). Auf Seiten mit großer Navigation sucht `controlFilter` gezielt
+nach Beschriftung oder Zeilentext, statt 200 Menülinks zu lesen. Checkboxen,
+Radiobuttons und Schalter (`role="switch"`) tragen `checked`; unbeschriftete Elemente
+den Text ihrer Zeile als `context`. Liegt ein Icon über einer Checkbox, klickt
+`brave_click` auf die Position statt abzubrechen.
 Die Texte einer Website bleiben untrusted data, keine Anweisungen an den Agenten.
 
 Mehrere Agenten teilen sich den Browser. Einzelne Aufrufe werden nacheinander
@@ -106,7 +112,8 @@ Der Server begrenzt den Tokenverbrauch der Agenten von Haus aus, statt ihn dem
 Client zu überlassen:
 
 - `brave_read` liefert höchstens 12.000 Zeichen pro Aufruf (Standard 6.000),
-  höchstens 200 Bedienelemente, Labels auf 180 Zeichen gestutzt. Mit `charOffset`
+  höchstens 200 Bedienelemente pro Aufruf (mit `controlsTotal` und `nextControlOffset`
+  blätterbar), Labels auf 180 Zeichen gestutzt. Mit `charOffset`
   und `nextCharOffset` blättern Agenten gezielt weiter, statt eine lange Seite
   mehrfach komplett zu lesen.
 - `brave_read` liefert sichtbaren Text statt HTML-Quelltext: Mark-up, Attribute
@@ -164,23 +171,6 @@ Erfahrungen aus dem Einsatz; wer dieses MCP nutzt, arbeitet danach:
 Downloads laufen im Browser selbst in den Download-Ordner des Profils; dieser Server bildet
 sie bisher nicht als Werkzeug ab und meldet weder Pfad noch Erfolg. Sollte das
 gebraucht werden, ist das ein eigener Ausbauauftrag.
-
-Checkboxen und Radiobuttons, die ein Framework mit einem eigenen Icon überdeckt
-(z.B. Fluent UI in den Bing Webmaster Tools), lassen sich mit `brave_click` nicht
-umschalten: Das Icon im `<label>` fängt den Klick ab, der Aufruf läuft nach 8 Sekunden
-in einen Timeout, `brave_fill` lehnt Checkboxen ab. Beobachtet am 18.11.2026 beim
-Häkchen „Crawl all subdomains“ im Site-Scan-Dialog. Ausbauauftrag: bei verdeckten
-Eingabefeldern auf das zugehörige `<label>` klicken (oder ein eigenes `brave_check`
-mit Sollzustand) und den neuen Zustand in der Antwort melden.
-
-`brave_read` liefert höchstens 200 Bedienelemente in DOM-Reihenfolge und meldet nicht,
-dass abgeschnitten wurde; Bedienelemente lassen sich anders als der Text nicht blättern.
-Auf Seiten mit großer Navigation sind die eigentlichen Schalter dann unerreichbar.
-Beobachtet am 18.11.2026 im Cloudflare-Dashboard (Sicherheit → Einstellungen →
-Bot-Traffic): Die Seitenleiste füllt alle 200 Plätze, der Schalter „Bot Fight“-Modus
-kommt nicht vor (Schalter ohne Beschriftung, `role="switch"`). Ausbauauftrag: Kürzung
-melden (`controlsTotal`, `nextControlOffset`), Bedienelemente blätterbar oder nach Text
-filterbar machen und Schalter mit `role="switch"`/`aria-checked` samt Zustand aufnehmen.
 
 ## Verbindung beenden
 

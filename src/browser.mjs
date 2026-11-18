@@ -17,15 +17,41 @@ function profile() {
   return path.join(os.homedir(), '.config/BraveSoftware/Brave-Browser-Nightly');
 }
 
-const describe = element => ({
-  tag: element.tagName.toLowerCase(),
-  label: (element.getAttribute('aria-label') || element.labels?.[0]?.innerText || element.innerText || element.getAttribute('placeholder') || element.title || '').trim().slice(0, 180),
-  type: element.getAttribute('type'),
-  value: element.matches('input:not([type=password]):not([type=hidden]):not([type=file]),textarea,select') ? element.value.slice(0, 250) : undefined,
-});
+const describe = element => {
+  const role = element.getAttribute('role');
+  const checkable = element.matches('input[type=checkbox],input[type=radio]') || ['switch', 'checkbox', 'radio'].includes(role);
+  const byId = (element.getAttribute('aria-labelledby') || '').split(/\s+/).map(id => id && element.ownerDocument.getElementById(id)?.innerText).filter(Boolean).join(' ');
+  const label = (element.getAttribute('aria-label') || byId || element.labels?.[0]?.innerText || element.innerText || element.getAttribute('placeholder') || element.title || '').trim().slice(0, 180);
+  // Schalter und unbeschriftete Elemente: Text der nächsten umgebenden Zeile als Kontext,
+  // weil Beschriftungen wie aria-label="Switch" (Cloudflare) nichts über die Einstellung sagen.
+  let context;
+  if (!label || checkable) for (let node = element.parentElement, depth = 0; node && depth < 6; node = node.parentElement, depth++) {
+    const text = node.innerText?.trim();
+    if (text) { context = text.replace(/\s+/g, ' ').slice(0, 180); break; }
+  }
+  return {
+    tag: element.tagName.toLowerCase(),
+    label,
+    type: element.getAttribute('type'),
+    ...(role ? { role } : {}),
+    ...(context ? { context } : {}),
+    ...(checkable ? { checked: element.matches('input') ? element.checked : element.getAttribute('aria-checked') === 'true' } : {}),
+    value: element.matches('input:not([type=password]):not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]),textarea,select') ? element.value.slice(0, 250) : undefined,
+  };
+};
 
-// 1: alles vor dem Versionsabgleich (18.11.2026). Bei Verhaltensänderungen des Daemon erhöhen.
-export const API_VERSION = 2;
+const CONTROLS = 'button,a[href],input:not([type=hidden]),textarea,select,summary,[role=button],[role=radio],[role=checkbox],[role=switch],[role=tab],[role=menuitem],[contenteditable=true]';
+
+// Filtert nach Beschriftung oder Kontext und schneidet eine Seite heraus; kennt nur beschriebene Elemente.
+export function pageControls(items, { controlOffset = 0, maxControls = 200, controlFilter } = {}) {
+  const needle = controlFilter?.trim().toLowerCase();
+  const matching = needle ? items.filter(item => `${item.label} ${item.context || ''}`.toLowerCase().includes(needle)) : items;
+  const page = matching.slice(controlOffset, controlOffset + maxControls);
+  return { page, controlsTotal: matching.length, nextControlOffset: controlOffset + page.length < matching.length ? controlOffset + page.length : null };
+}
+
+// 1: alles vor dem Versionsabgleich (18.11.2026). 3: Bedienelemente blätter- und filterbar, Schalterzustand.
+export const API_VERSION = 3;
 
 export class Brave {
   pages = new Map(); frames = new Map(); refs = new Map(); connections = 0;
@@ -66,22 +92,29 @@ export class Brave {
     if (!frame || !page.frames().includes(frame)) throw new Error('Frame gehört nicht zu diesem Tab oder wurde neu geladen.');
     return { page, frame };
   }
-  async read({ tabId, frameId, maxChars = 6000, charOffset = 0 }) {
+  async read({ tabId, frameId, maxChars = 6000, charOffset = 0, controlOffset = 0, maxControls = 200, controlFilter }) {
     const { page, frame } = await this.frame(tabId, frameId);
     const frames = page.frames().map(f => ({ frameId: this.id(this.frames, f, 'frame'), url: f.url(), main: f === page.mainFrame() }));
     const full = await frame.locator('body').innerText({ timeout: 5000 });
     const text = full.slice(charOffset, charOffset + maxChars);
     const nextCharOffset = charOffset + text.length < full.length ? charOffset + text.length : null;
-    const controls = [];
-    for (const element of (await frame.locator('button,a[href],input:not([type=hidden]),textarea,select,[role=button],[role=radio],[contenteditable=true]').elementHandles()).slice(0, 200)) {
+    const found = [];
+    for (const element of await frame.locator(CONTROLS).elementHandles()) {
       if (!(await element.isVisible()) && !(await element.evaluate(e => e.matches('input[type=file]')))) { await element.dispose(); continue; }
-      const item = await element.evaluate(describe);
+      // UI-Bibliotheken (Base UI, Radix) spiegeln einen Schalter in ein verstecktes 1×1-Eingabefeld; nur den echten Schalter liefern.
+      if (await element.evaluate(e => e.matches('input[type=checkbox],input[type=radio]') && !!e.parentElement?.querySelector('[role=switch],[role=checkbox],[role=radio]'))) { await element.dispose(); continue; }
+      found.push({ element, ...(await element.evaluate(describe)) });
+    }
+    const { page: chosen, controlsTotal, nextControlOffset } = pageControls(found, { controlOffset, maxControls, controlFilter });
+    const controls = [];
+    for (const { element, ...item } of found) {
+      if (!chosen.some(c => c.element === element)) { await element.dispose(); continue; }
       const ref = `ref-${randomUUID()}`;
       this.refs.set(ref, { element, tabId, frame, description: item, created: Date.now() });
       controls.push({ ref, ...item });
     }
     for (const [ref, item] of this.refs) if (Date.now() - item.created > 600000 || this.refs.size > 2000) { this.refs.delete(ref); await item.element.dispose().catch(() => {}); }
-    return { tabId, frameId: this.id(this.frames, frame, 'frame'), url: frame.url(), charOffset, charsTotal: full.length, nextCharOffset, text, controls, frames };
+    return { tabId, frameId: this.id(this.frames, frame, 'frame'), url: frame.url(), charOffset, charsTotal: full.length, nextCharOffset, text, controlOffset, controlsTotal, nextControlOffset, controls, frames };
   }
   async settle(page, ms = 0) {
     if (!ms) return;
@@ -127,6 +160,22 @@ export class Brave {
     if (method === 'click') {
       const element = await this.element(args.tabId, args.ref);
       const page = await this.page(args.tabId);
+      const before = await element.evaluate(describe);
+      if ('checked' in before) {
+        // Frameworks legen oft ein Icon über Checkbox oder Schalter, das den Klick abfängt;
+        // dann auf die Position klicken, ohne die Überdeckungsprüfung (trifft das Label).
+        await element.click({ timeout: 2000 }).catch(() => element.click({ force: true, timeout: 6000 }));
+        await this.settle(page, args.wait || 300);
+        let after = await element.evaluate(describe).catch(() => null);
+        if (after && after.checked === before.checked) {
+          // Versteckte Eingabefelder (Opazität 0, Größe 0) reagieren nur über ihr sichtbares Label oder die Hülle.
+          const holder = (await element.evaluateHandle(e => e.labels?.[0] || e.closest('label') || e.parentElement)).asElement();
+          if (holder) { await holder.click({ force: true, timeout: 6000 }); await this.settle(page, args.wait || 300); }
+          after = await element.evaluate(describe).catch(() => null);
+          await holder?.dispose();
+        }
+        return { clicked: true, ...(after && 'checked' in after ? { checked: after.checked } : {}) };
+      }
       await element.click({ timeout: 8000 });
       await this.settle(page, args.wait);
       return { clicked: true };
