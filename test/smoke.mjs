@@ -7,7 +7,7 @@ import fs from 'node:fs/promises';
 
 const fixture = http.createServer((request, response) => {
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
-  response.end(request.url === '/frame' ? '<button onclick="this.textContent=\'Frame bestätigt\'">Frame-Test</button>' : `<!doctype html><title>Brave MCP – lokaler Funktionstest</title><h1>Lokaler MCP-Test</h1><label>Name <input id="name"></label><button onclick="document.querySelector('#result').textContent='Hallo '+document.querySelector('#name').value">Bestätigen</button><p id="result"></p><label>Datei <input type="file" hidden onchange="document.querySelector('#file').textContent=this.files[0].name"></label><p id="file"></p><iframe src="/frame"></iframe>`);
+  response.end(request.url === '/frame' ? '<button onclick="this.textContent=\'Frame bestätigt\'">Frame-Test</button>' : request.url === '/next' ? '<!doctype html><title>Brave MCP – nächste Seite</title><h1>Nächste Seite erreicht</h1><p><a href="/">Zurück</a></p>' : `<!doctype html><title>Brave MCP – lokaler Funktionstest</title><h1>Lokaler MCP-Test</h1><label>Name <input id="name"></label><button onclick="document.querySelector('#result').textContent='Hallo '+document.querySelector('#name').value">Bestätigen</button><p id="result"></p><label>Datei <input type="file" hidden onchange="document.querySelector('#file').textContent=this.files[0].name"></label><p id="file"></p><iframe src="/frame"></iframe><a href="/next">Weiter</a><p id="long"></p><script>document.querySelector('#long').textContent='x'.repeat(15000)+'ENDE-MARKER'</script>`);
 });
 await new Promise(resolve => fixture.listen(0, '127.0.0.1', resolve));
 const clients = [];
@@ -37,13 +37,22 @@ try {
   const frame = await call(a, 'brave_read', { tabId, frameId });
   await call(b, 'brave_click', { tabId, ref: frame.controls.find(control => control.label === 'Frame-Test').ref });
   assert.match((await call(a, 'brave_read', { tabId, frameId })).text, /Frame bestätigt/);
+  const start = await call(a, 'brave_read', { tabId, maxChars: 100 });
+  assert.ok(start.charsTotal > 15000, `Langer Text vollständig erkannt: ${start.charsTotal}`);
+  const tail = await call(a, 'brave_read', { tabId, maxChars: 500, charOffset: start.charsTotal - 500 });
+  assert.equal(tail.charOffset, start.charsTotal - 500);
+  assert.equal(tail.nextCharOffset, null);
+  assert.match(tail.text, /ENDE-MARKER/);
+  const before = await call(a, 'brave_read', { tabId });
+  await call(b, 'brave_click', { tabId, ref: before.controls.find(control => control.label === 'Weiter').ref, wait: 4000 });
+  assert.match((await call(a, 'brave_read', { tabId })).text, /Nächste Seite erreicht/);
   const screenshot = await b.callTool({ name: 'brave_screenshot', arguments: { tabId } });
   assert.equal(screenshot.content[0].type, 'image');
   assert.ok(Buffer.from(screenshot.content[0].data, 'base64').length > 100);
   const sa = await call(a, 'brave_status'), sb = await call(b, 'brave_status');
   assert.equal(sa.daemonPid, sb.daemonPid); assert.equal(sa.browserConnections, 1); assert.equal(sb.browserConnections, 1);
   await call(a, 'brave_navigate', { tabId, url: 'about:blank' }).then(() => assert.fail('Interne Navigation wurde erlaubt'), () => {});
-  console.log(JSON.stringify({ ok: true, tools: 9, clients: 2, browserConnections: 1, checks: ['initialize', 'tools/list', 'fill', 'trusted click', 'hidden upload', 'iframe', 'screenshot', 'client sharing', 'URL validation'] }));
+  console.log(JSON.stringify({ ok: true, tools: 9, clients: 2, browserConnections: 1, checks: ['initialize', 'tools/list', 'fill', 'trusted click', 'hidden upload', 'iframe', 'charOffset paging', 'wait after click navigation', 'screenshot', 'client sharing', 'URL validation'] }));
   // Testseite leer zurücklassen; fremde Tabs bleiben unverändert.
   await call(a, 'brave_navigate', { tabId, url: `http://127.0.0.1:${fixture.address().port}/done` });
 } finally {

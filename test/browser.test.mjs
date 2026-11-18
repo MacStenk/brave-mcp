@@ -18,3 +18,16 @@ test('Veraltete Referenzen werden vor jeder Browseraktion abgewiesen', async () 
   brave.refs.set('ref-a', { tabId: 'tab-a', created: 0 });
   await assert.rejects(brave.element('tab-a', 'ref-a'), /Veraltete/);
 });
+test('Wartezeit wartet nach einer Aktion auf Laden und Beruhigung', async () => {
+  const brave = new Brave();
+  const seen = [];
+  const page = {
+    waitForLoadState: async (state, options) => { seen.push(['load', state, options.timeout]); },
+    waitForTimeout: async ms => { seen.push(['settle', ms]); },
+  };
+  await brave.settle(page);
+  assert.deepEqual(seen, []);
+  await brave.settle(page, 4000);
+  assert.deepEqual(seen[0], ['load', 'domcontentloaded', 4000]);
+  assert.equal(seen[1][0], 'settle'); assert.ok(seen[1][1] > 3900, `Beruhigungsfenster fast vollständig: ${seen[1][1]}`);
+});

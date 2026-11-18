@@ -58,10 +58,12 @@ export class Brave {
     if (!frame || !page.frames().includes(frame)) throw new Error('Frame gehört nicht zu diesem Tab oder wurde neu geladen.');
     return { page, frame };
   }
-  async read({ tabId, frameId, maxChars = 6000 }) {
+  async read({ tabId, frameId, maxChars = 6000, charOffset = 0 }) {
     const { page, frame } = await this.frame(tabId, frameId);
     const frames = page.frames().map(f => ({ frameId: this.id(this.frames, f, 'frame'), url: f.url(), main: f === page.mainFrame() }));
-    const text = (await frame.locator('body').innerText({ timeout: 5000 })).slice(0, maxChars);
+    const full = await frame.locator('body').innerText({ timeout: 5000 });
+    const text = full.slice(charOffset, charOffset + maxChars);
+    const nextCharOffset = charOffset + text.length < full.length ? charOffset + text.length : null;
     const controls = [];
     for (const element of (await frame.locator('button,a[href],input:not([type=hidden]),textarea,select,[role=button],[role=radio],[contenteditable=true]').elementHandles()).slice(0, 200)) {
       if (!(await element.isVisible()) && !(await element.evaluate(e => e.matches('input[type=file]')))) { await element.dispose(); continue; }
@@ -71,7 +73,16 @@ export class Brave {
       controls.push({ ref, ...item });
     }
     for (const [ref, item] of this.refs) if (Date.now() - item.created > 600000 || this.refs.size > 2000) { this.refs.delete(ref); await item.element.dispose().catch(() => {}); }
-    return { tabId, frameId: this.id(this.frames, frame, 'frame'), url: frame.url(), text, controls, frames };
+    return { tabId, frameId: this.id(this.frames, frame, 'frame'), url: frame.url(), charOffset, charsTotal: full.length, nextCharOffset, text, controls, frames };
+  }
+  async settle(page, ms = 0) {
+    if (!ms) return;
+    const until = Date.now() + ms;
+    // Eine laufende Navigation zulassen; bereits geladene Seiten kehren sofort zurück.
+    await page.waitForLoadState('domcontentloaded', { timeout: ms }).catch(() => {});
+    // Restzeit als Beruhigungsfenster, da SPAs das DOM ohne Navigation ändern.
+    const left = until - Date.now();
+    if (left > 0) await page.waitForTimeout(left).catch(() => {});
   }
   async element(tabId, ref, upload = false) {
     await this.page(tabId);
@@ -86,7 +97,13 @@ export class Brave {
     if (method === 'status') return { connected: !!this.browser?.isConnected(), browserConnections: this.connections, daemonPid: process.pid };
     if (method === 'tabs') return this.tabs();
     if (method === 'read') return this.read(args);
-    if (method === 'click') { await (await this.element(args.tabId, args.ref)).click({ timeout: 8000 }); return { clicked: true }; }
+    if (method === 'click') {
+      const element = await this.element(args.tabId, args.ref);
+      const page = await this.page(args.tabId);
+      await element.click({ timeout: 8000 });
+      await this.settle(page, args.wait);
+      return { clicked: true };
+    }
     if (method === 'fill') { await (await this.element(args.tabId, args.ref)).fill(args.text, { timeout: 8000 }); return { filled: true }; }
     if (method === 'upload') {
       const element = await this.element(args.tabId, args.ref, true);
@@ -102,6 +119,7 @@ export class Brave {
       if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Nur HTTP(S)-Adressen ohne eingebettete Zugangsdaten.');
       const page = method === 'open' ? await (await this.connect()).contexts()[0].newPage() : await this.page(args.tabId);
       await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await this.settle(page, args.wait);
       return { tabId: this.id(this.pages, page, 'tab'), url: page.url() };
     }
     throw new Error('Unbekannte Browserfunktion.');

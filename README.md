@@ -31,6 +31,7 @@ Rechner vorhandenen absoluten Pfade. Auf anderen Rechnern beide Pfade anpassen.
 
 - Claude Desktop und andere lokale Clients mit `mcpServers`: Eintrag aus `config/mcp.json` übernehmen.
 - Codex und andere TOML-Clients: `config/codex.toml` als Beispiel verwenden.
+- ZCode: Eintrag aus `config/zcode.json` in `~/.zcode/cli/config.json` unter `mcp.servers` übernehmen.
 - Andere Agenten können denselben stdio-Server starten, sofern ihre Anwendung lokale MCP-Server unterstützt.
 - ChatGPT im normalen Web und Grok im Web sind dadurch noch nicht automatisch verbunden.
   Eine Anwendung, die nur entfernte MCP-Server unterstützt, benötigt eine zusätzliche
@@ -46,15 +47,19 @@ Verzeichniseintrag angelegt. Das Paket ist vorerst privat.
 | --- | --- |
 | `brave_status` | Gemeinsame Verbindung und Prozess prüfen |
 | `brave_tabs` | Offene Tabs mit stabilen IDs auflisten |
-| `brave_read` | Sichtbaren Text, Bedienelemente und Frames lesen |
-| `brave_click` | Ein gelesenes Element anklicken |
+| `brave_read` | Sichtbaren Text, Bedienelemente und Frames lesen; mit `charOffset` blätterbar |
+| `brave_click` | Ein gelesenes Element anklicken, optional mit Wartezeit |
 | `brave_fill` | Ein gelesenes Eingabefeld ausfüllen |
 | `brave_upload` | Lokale Dateien in einem Uploadfeld auswählen |
 | `brave_screenshot` | Screenshot des gewählten Tabs aufnehmen |
-| `brave_navigate` | Einen gewählten Tab zu HTTP(S) navigieren |
-| `brave_open` | Eine Adresse in einem neuen Tab öffnen |
+| `brave_navigate` | Einen gewählten Tab zu HTTP(S) navigieren, optional mit Wartezeit |
+| `brave_open` | Eine Adresse in einem neuen Tab öffnen, optional mit Wartezeit |
 
 Zuerst `brave_tabs`, danach `brave_read` mit einer konkreten Tab-ID aufrufen.
+`brave_read` nennt `charsTotal` und `nextCharOffset`; mit `charOffset` blättern
+Agenten durch Seiten, die länger als das Leselimit sind. Klicken, Navigieren und
+Öffnen akzeptieren `wait` in Millisekunden und kehren erst nach dem Laden und einer
+kurzen Beruhigungsphase zurück; ohne `wait` kehrt die Aktion sofort zurück.
 Eingebettete Anwendungen lassen sich anschließend über die zurückgegebenen Frame-IDs
 lesen. Aktionen verwenden Referenzen auf konkrete DOM-Elemente, gebunden an ihren Tab.
 Veränderte, abgelaufene und tabfremde Referenzen werden zurückgewiesen.
@@ -72,6 +77,8 @@ node /Users/stevennoack/dev/brave-mcp/src/server.mjs --stop
 
 Dies trennt den gemeinsamen Zugang für alle Clients, lässt Brave und seine Tabs aber
 geöffnet. Das Beenden eines einzelnen MCP-Clients trennt die gemeinsame Verbindung nicht.
+Nach Änderungen am Servercode den gemeinsamen Prozess einmal mit `--stop` beenden;
+der nächste Client-Aufruf startet ihn mit dem neuen Code.
 Der lokale Unix-Socket liegt in einem Benutzerverzeichnis mit Modus 0700 und ist selbst
 nur für diesen Benutzer zugänglich (0600). Es gibt keinen offenen HTTP-Server für MCP.
 Unterstützt werden derzeit POSIX-Systeme; live geprüft wurde macOS mit Brave Nightly.
@@ -89,6 +96,7 @@ eingebetteten Frame und Screenshots. Zwei getrennte MCP-Clients müssen denselbe
 Prozess und genau eine Browserverbindung melden. Bestehende Tabs werden nicht navigiert.
 Der Test-Tab bleibt zur Sichtprüfung offen; sein Testserver endet mit dem Testprozess.
 
-Stand 18.11.2026: drei lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
-allen neun Werkzeugen erfolgreich. Keine Abhängigkeit vom Google-Flow-MCP oder von
+Stand 18.11.2026: vier lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
+allen neun Werkzeugen erfolgreich, einschließlich Wartezeit nach Klick/Navigation und
+Textblättern per `charOffset`. Keine Abhängigkeit vom Google-Flow-MCP oder von
 Stevens Befehls-Bibliothek.
