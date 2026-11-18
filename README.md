@@ -58,15 +58,25 @@ symlinks pointing out of it are refused, so a page cannot talk an agent into
 uploading your SSH keys. The shared background process reads the variable when it
 starts; after changing it, run `node src/server.mjs --stop`.
 
-### Recommended: a separate agent profile (macOS)
+### Keeping agents away from sensitive tabs
 
-By default agents see every tab of your browser, including mail and banking. To keep them away from those, give them their own Brave profile:
+By default agents see every tab of your browser, including mail and banking. Two switches change that at any time, without a restart:
 
-1. In Brave, click the profile icon → **Add**, name the profile `Agent` and pick a colour you will recognise.
-2. In that profile, sign in only to the services agents may use.
-3. Set `BRAVE_MCP_PROFILE=Agent` in your MCP client config and run `node src/server.mjs --stop` once.
+- **Blocklist:** blocked sites are invisible to agents and cannot be opened by them, while you stay in your normal profile with all logins. A domain includes its subdomains (`google.com` also blocks `mail.google.com`).
+- **Agent mode:** agents see **only** the tabs of one Brave profile, and `brave_open` opens tabs there. Create it once in Brave (profile icon → **Add**, name it `Agent`, pick a colour you will recognise) and sign in there only to services agents may use. Opening tabs in another profile goes through macOS `open`, so agent mode is macOS-only for now.
 
-From then on `brave_open` opens tabs in the Agent profile, and every tool sees **only** that profile's tabs; tabs in your other profiles stay invisible to agents, although everything runs in the same Brave. brave-mcp only reads the profile list and never creates or changes profiles. Opening tabs in another profile goes through macOS `open`, so this option is macOS-only for now. `BRAVE_APP` names the Brave app to open (default `Brave Browser Nightly`).
+**Control page:** while brave-mcp runs, open <http://127.0.0.1:47821/> and bookmark it. It switches the mode, lists the sites open in your tabs with a **Block** button, and manages the blocklist. It only accepts changes from itself (host, origin and a per-start key are checked), and agents cannot open it.
+
+**Terminal**, for example with `alias brave-mcp="node /path/to/brave-mcp/src/server.mjs"`:
+
+```sh
+brave-mcp block add bank.example   # block; without a domain: the front tab in Brave (macOS)
+brave-mcp block remove bank.example
+brave-mcp block                    # show the list
+brave-mcp mode agent               # or: all; without argument: show
+```
+
+Settings live in `~/.config/brave-mcp/settings.json` (`BRAVE_MCP_SETTINGS` to move it) and are read on every agent action. Agents have no tool to change them. Without a saved mode, `BRAVE_MCP_PROFILE=Agent` starts in agent mode. `BRAVE_MCP_CONTROL_PORT` changes the port, `BRAVE_APP` names the Brave app to open (default `Brave Browser Nightly`).
 
 ## Clients
 

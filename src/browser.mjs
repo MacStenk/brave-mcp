@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
+import { loadSettings, isBlocked, isControl } from './settings.mjs';
 
 export function localEndpoint(portFile) {
   const [port, route, ...rest] = portFile.trim().split(/\r?\n/);
@@ -58,7 +59,8 @@ export function pageControls(items, { controlOffset = 0, maxControls = 200, cont
 // 4: Icon-Zeichen (Private Use Area) aus Text und Beschriftungen entfernt, brave_close für selbst geöffnete Tabs.
 // 5: Uploads nur aus dem Upload-Ordner (BRAVE_MCP_UPLOAD_DIR, Standard ~/Downloads).
 // 6: BRAVE_MCP_PROFILE beschränkt alle Werkzeuge auf ein Brave-Profil, brave_open öffnet dort.
-export const API_VERSION = 6;
+// 7: Sperrliste und umschaltbarer Agent-Modus (Steuerseite, settings.json); gesperrte Seiten sind unsichtbar.
+export const API_VERSION = 7;
 
 // Entfernt Icon-Zeichen aus Webfonts; Zeilen, die nur aus Icons bestanden, verschwinden mit, echte Leerzeilen bleiben.
 export function stripIcons(text) {
@@ -84,17 +86,17 @@ export async function uploadPaths(files, root = uploadRoot()) {
   }));
 }
 
-// Agenten-Profil: Mit BRAVE_MCP_PROFILE sehen alle Werkzeuge nur die Tabs dieses Brave-Profils,
+// Agenten-Profil: Im Agent-Modus sehen alle Werkzeuge nur die Tabs dieses Brave-Profils,
 // und brave_open öffnet dort. Das Profil legt der Nutzer selbst in Brave an; hier wird es nur gelesen.
 export async function profileDirectory(name, userDataDir = profile()) {
   const state = JSON.parse(await fs.readFile(path.join(userDataDir, 'Local State'), 'utf8').catch(() => '{}'));
   const entry = Object.entries(state.profile?.info_cache ?? {}).find(([, info]) => info.name === name);
-  if (!entry) throw new Error(`Brave profile "${name}" not found (BRAVE_MCP_PROFILE). Create it in Brave: profile icon → Add, name it "${name}", then try again.`);
+  if (!entry) throw new Error(`Brave profile "${name}" not found (agent mode). Create it in Brave: profile icon → Add, name it "${name}", then try again. Or switch brave-mcp back to all profiles.`);
   return entry[0];
 }
 function launchInProfile(directory, url) {
   // Über das Betriebssystem öffnen: Die Debugging-Schnittstelle kann keine Tabs in einem anderen Profil anlegen.
-  if (process.platform !== 'darwin') throw new Error('BRAVE_MCP_PROFILE currently works on macOS only.');
+  if (process.platform !== 'darwin') throw new Error('Agent mode currently works on macOS only.');
   const app = process.env.BRAVE_APP || 'Brave Browser Nightly';
   return new Promise((resolve, reject) => execFile('open', ['-na', app, '--args', `--profile-directory=${directory}`, url], error => error ? reject(new Error(`Could not open ${app}: ${error.message}`)) : resolve()));
 }
@@ -146,10 +148,11 @@ export class Brave {
     }
     throw new Error('Brave did not open a tab in the agent profile within 15 seconds.');
   }
-  async profileScope() {
-    const name = process.env.BRAVE_MCP_PROFILE;
-    if (!name) return null;
-    if (!this.scope) {
+  async profileScope(settings) {
+    if (settings.mode !== 'agent') return null;
+    const name = settings.profile;
+    if (this.scope?.name !== name) {
+      this.scope = undefined;
       const directory = await profileDirectory(name);
       // Kennung des Profils einmal über einen leeren Tab ermitteln und ihn danach wieder schließen.
       const marker = await this.openInProfile(directory, 'about:blank');
@@ -160,11 +163,19 @@ export class Brave {
   }
   async tabs() {
     const browser = await this.connect();
-    const scope = await this.profileScope();
+    const settings = await loadSettings();
+    const scope = await this.profileScope(settings);
     let pages = browser.contexts().flatMap(context => context.pages());
     if (scope) pages = (await Promise.all(pages.map(async page => (await this.pageTarget(page))?.browserContextId === scope.contextId ? page : null))).filter(Boolean);
+    // Gesperrte Seiten und die Steuerseite bleiben für Agenten unsichtbar, auch wenn ein Tab erst später dorthin wechselt.
+    pages = pages.filter(page => !isBlocked(page.url(), settings.blocked) && !isControl(page.url()));
     for (const [id, page] of this.pages) if (!pages.includes(page)) this.pages.delete(id);
     return Promise.all(pages.map(async page => ({ tabId: this.id(this.pages, page, 'tab'), title: await page.title(), url: page.url() })));
+  }
+  // Für die Steuerseite: Adressen aller Tabs, ohne Filter; null, solange keine Verbindung besteht (keine neue Freigabe-Abfrage).
+  openUrls() {
+    if (!this.browser?.isConnected()) return null;
+    return this.browser.contexts().flatMap(context => context.pages()).map(page => page.url());
   }
   async page(tabId) {
     await this.tabs();
@@ -280,8 +291,10 @@ export class Brave {
     if (method === 'navigate' || method === 'open') {
       const url = new URL(args.url);
       if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Only HTTP(S) URLs without embedded credentials.');
+      const settings = await loadSettings();
+      if (isBlocked(url.href, settings.blocked) || isControl(url.href)) throw new Error('This site is blocked for agents by the user.');
       let page;
-      const scope = method === 'open' ? await this.profileScope() : null;
+      const scope = method === 'open' ? await this.profileScope(settings) : null;
       if (scope) {
         const target = await this.openInProfile(scope.directory, url.href);
         for (const until = Date.now() + 10000; !page && Date.now() < until; await new Promise(r => setTimeout(r, 250))) {
@@ -292,13 +305,14 @@ export class Brave {
         if (!page) throw new Error('Opened a tab in the agent profile but could not attach to it.');
         this.opened.add(page);
         await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
-        await this.settle(page, args.wait);
-        return { tabId: this.id(this.pages, page, 'tab'), url: page.url() };
+      } else {
+        page = method === 'open' ? await (await this.connect()).contexts()[0].newPage() : await this.page(args.tabId);
+        if (method === 'open') this.opened.add(page);
+        await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 15000 });
       }
-      page = method === 'open' ? await (await this.connect()).contexts()[0].newPage() : await this.page(args.tabId);
-      if (method === 'open') this.opened.add(page);
-      await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 15000 });
       await this.settle(page, args.wait);
+      // Eine Weiterleitung auf eine gesperrte Seite nicht verraten.
+      if (isBlocked(page.url(), settings.blocked)) throw new Error('The page redirected to a site blocked for agents by the user.');
       return { tabId: this.id(this.pages, page, 'tab'), url: page.url() };
     }
     if (method === 'close') {

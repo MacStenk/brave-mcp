@@ -43,15 +43,25 @@ Ein anderer Ordner lässt sich mit `BRAVE_MCP_UPLOAD_DIR` setzen. Pfade außerha
 Agenten nicht dazu bringen, SSH-Schlüssel hochzuladen. Der gemeinsame Prozess liest
 die Variable beim Start; nach einer Änderung `node src/server.mjs --stop`.
 
-### Empfohlen: ein eigenes Agenten-Profil (macOS)
+### Sensible Tabs vor Agenten schützen
 
-Ohne weitere Einstellung sehen Agenten alle Tabs deines Browsers, auch Mail und Bank. Damit sie davon getrennt bleiben, bekommen sie ein eigenes Brave-Profil:
+Ohne weitere Einstellung sehen Agenten alle Tabs deines Browsers, auch Mail und Bank. Zwei Schalter ändern das jederzeit, ohne Neustart:
 
-1. In Brave auf das Profil-Symbol → **Hinzufügen**, das Profil `Agent` nennen und eine gut erkennbare Farbe wählen.
-2. In diesem Profil nur bei den Diensten anmelden, die Agenten nutzen dürfen.
-3. In der MCP-Client-Konfiguration `BRAVE_MCP_PROFILE=Agent` setzen und einmal `node src/server.mjs --stop` ausführen.
+- **Sperrliste:** Gesperrte Seiten sind für Agenten unsichtbar, und Agenten können sie nicht öffnen. Du bleibst dabei in deinem normalen Profil mit allen Anmeldungen. Eine Domain gilt mit ihren Subdomains (`google.com` sperrt auch `mail.google.com`).
+- **Agent-Modus:** Agenten sehen **nur** die Tabs eines Brave-Profils, und `brave_open` öffnet dort. Einmal in Brave anlegen (Profil-Symbol → **Hinzufügen**, Name `Agent`, gut erkennbare Farbe) und dort nur bei Diensten anmelden, die Agenten nutzen dürfen. Tabs in einem anderen Profil öffnet brave-mcp über macOS `open`, daher vorerst nur auf macOS.
 
-Danach öffnet `brave_open` Tabs im Agent-Profil, und alle Werkzeuge sehen **nur** dessen Tabs; Tabs anderer Profile bleiben für Agenten unsichtbar, obwohl alles im selben Brave läuft. brave-mcp liest die Profilliste nur und legt keine Profile an. Tabs in einem anderen Profil öffnet es über macOS `open`, daher vorerst nur auf macOS. `BRAVE_APP` nennt die zu öffnende Brave-App (Standard `Brave Browser Nightly`).
+**Steuerseite:** Solange brave-mcp läuft, <http://127.0.0.1:47821/> öffnen und als Lesezeichen speichern. Dort schaltest du den Modus um, siehst die in deinen Tabs offenen Seiten mit einem Knopf **Block** und pflegst die Sperrliste. Änderungen nimmt sie nur von sich selbst an (Host, Herkunft und ein Schlüssel pro Start werden geprüft), Agenten können sie nicht öffnen.
+
+**Terminal**, zum Beispiel mit `alias brave-mcp="node /pfad/zu/brave-mcp/src/server.mjs"`:
+
+```sh
+brave-mcp block add bank.example   # sperren; ohne Domain: der vordere Tab in Brave (macOS)
+brave-mcp block remove bank.example
+brave-mcp block                    # Liste zeigen
+brave-mcp mode agent               # oder: all; ohne Angabe: anzeigen
+```
+
+Die Einstellungen liegen in `~/.config/brave-mcp/settings.json` (verschieben mit `BRAVE_MCP_SETTINGS`) und werden bei jeder Agenten-Aktion neu gelesen. Agenten haben kein Werkzeug, um sie zu ändern. Ohne gespeicherten Modus startet `BRAVE_MCP_PROFILE=Agent` im Agent-Modus. `BRAVE_MCP_CONTROL_PORT` ändert den Port, `BRAVE_APP` nennt die zu öffnende Brave-App (Standard `Brave Browser Nightly`).
 
 ## Clients
 

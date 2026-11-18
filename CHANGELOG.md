@@ -11,10 +11,12 @@ promises and which versions get fixes.
 
 ### Added
 
-- `BRAVE_MCP_PROFILE` limits every tool to one Brave profile, chosen by the name
-  you gave it in Brave, and `brave_open` opens tabs there. Agents then cannot see
-  mail, banking or anything else in your other profiles. macOS only for now;
-  `BRAVE_APP` names the Brave app to open (default `Brave Browser Nightly`).
+- Agent mode: every tool sees only the tabs of one Brave profile, chosen by the
+  name you gave it in Brave, and `brave_open` opens tabs there. macOS only for now.
+- Blocklist: blocked sites are invisible to agents and cannot be opened by them,
+  also after a redirect. A domain includes its subdomains.
+- Control page at `http://127.0.0.1:47821/` and terminal commands (`block`,
+  `mode`) switch both at any time without a restart. Agents cannot change them.
 
 ### Security
 

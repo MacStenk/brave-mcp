@@ -4,6 +4,7 @@ import { openSync, closeSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Brave, API_VERSION } from './browser.mjs';
+import { startControl } from './control.mjs';
 
 // Ein älterer Hintergrundprozess darf neue Optionen nicht still ignorieren.
 export function versionError(clientVersion) {
@@ -52,6 +53,8 @@ export async function serveBridge() {
   process.on('SIGINT', () => void stop());
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(socketPath, resolve); });
   await fs.chmod(socketPath, 0o600);
+  // Ohne Steuerseite (Port belegt) laufen die Werkzeuge weiter; Einstellungen gehen dann per Befehl.
+  await startControl(browser).catch(error => console.error(`Control page unavailable: ${error.message}`));
 }
 
 function rpc(method, args) {

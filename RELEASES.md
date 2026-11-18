@@ -26,9 +26,12 @@ Covered by this promise:
 - Safety guarantees: references bound to their tab and expiring, no page-script
   execution, `brave_close` refusing tabs it did not open, navigation limited to
   HTTP(S) without embedded credentials.
-- The command line: `node src/server.mjs`, `--stop`, and the environment variables
-  `BRAVE_USER_DATA_DIR`, `BRAVE_MCP_UPLOAD_DIR`, `BRAVE_MCP_PROFILE` and `BRAVE_APP`.
-- With `BRAVE_MCP_PROFILE` set, tools never see or touch tabs of other profiles.
+- The command line: `node src/server.mjs`, `--stop`, `block`, `mode`, `control`,
+  and the environment variables `BRAVE_USER_DATA_DIR`, `BRAVE_MCP_UPLOAD_DIR`,
+  `BRAVE_MCP_PROFILE`, `BRAVE_APP`, `BRAVE_MCP_SETTINGS` and `BRAVE_MCP_CONTROL_PORT`.
+- The control page address and the settings file format.
+- In agent mode, tools never see or touch tabs of other profiles; blocked sites
+  are never shown to or opened by agents.
 - The Node.js floor declared in `package.json` (`engines.node`).
 
 Not covered:

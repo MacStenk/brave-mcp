@@ -3,12 +3,45 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { request, serveBridge } from './bridge.mjs';
+import { loadSettings, updateSettings, normalizeSite, controlPort, settingsPath } from './settings.mjs';
 import { readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+
+const [command, sub, value] = process.argv.slice(2);
+
+// Vorderster Tab in Brave über AppleScript (macOS), für "block add" ohne Adresse.
+function frontTabUrl() {
+  const app = process.env.BRAVE_APP || 'Brave Browser Nightly';
+  return new Promise((resolve, reject) => execFile('osascript', ['-e', `tell application "${app}" to get URL of active tab of front window`], (error, stdout) => error ? reject(new Error(`Could not read the front tab of ${app}; pass the domain instead.`)) : resolve(stdout.trim())));
+}
 
 if (process.argv.includes('--bridge')) {
   await serveBridge();
 } else if (process.argv.includes('--stop')) {
   console.log(JSON.stringify(await request('stop')));
+} else if (command === 'block') {
+  if (sub === 'add') {
+    const site = normalizeSite(value || await frontTabUrl());
+    await updateSettings(s => { if (!s.blocked.includes(site)) s.blocked.push(site); s.blocked.sort(); });
+    console.log(`Blocked for agents: ${site}`);
+  } else if (sub === 'remove') {
+    const site = normalizeSite(value);
+    await updateSettings(s => { s.blocked = s.blocked.filter(item => item !== site); });
+    console.log(`No longer blocked: ${site}`);
+  } else if (sub) {
+    console.error('Usage: block [add [domain] | remove <domain>]'); process.exitCode = 1;
+  } else {
+    const { blocked } = await loadSettings();
+    console.log(blocked.length ? blocked.join('\n') : 'Nothing blocked.');
+  }
+} else if (command === 'mode') {
+  if (sub && !['agent', 'all'].includes(sub)) { console.error('Usage: mode [agent | all]'); process.exitCode = 1; }
+  else {
+    const settings = sub ? await updateSettings(s => { s.mode = sub; }) : await loadSettings();
+    console.log(settings.mode === 'agent' ? `Agents see only the Brave profile "${settings.profile}".` : 'Agents see all profiles (blocked sites excluded).');
+  }
+} else if (command === 'control') {
+  console.log(`http://127.0.0.1:${controlPort()}/  (settings: ${settingsPath()})`);
 } else {
   const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   const server = new McpServer({ name: 'brave-session', version });
