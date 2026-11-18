@@ -55,7 +55,8 @@ export function pageControls(items, { controlOffset = 0, maxControls = 200, cont
 
 // 1: alles vor dem Versionsabgleich (18.11.2026). 3: Bedienelemente blätter- und filterbar, Schalterzustand.
 // 4: Icon-Zeichen (Private Use Area) aus Text und Beschriftungen entfernt, brave_close für selbst geöffnete Tabs.
-export const API_VERSION = 4;
+// 5: Uploads nur aus dem Upload-Ordner (BRAVE_MCP_UPLOAD_DIR, Standard ~/Downloads).
+export const API_VERSION = 5;
 
 // Entfernt Icon-Zeichen aus Webfonts; Zeilen, die nur aus Icons bestanden, verschwinden mit, echte Leerzeilen bleiben.
 export function stripIcons(text) {
@@ -63,6 +64,22 @@ export function stripIcons(text) {
     const kept = line.replace(/[\uE000-\uF8FF\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}]/gu, '');
     return kept.trim() || !line.trim() ? [kept] : [];
   }).join('\n');
+}
+
+// Uploads nur aus einem Ordner: Eine Website mit versteckten Anweisungen soll einen Agenten nicht dazu
+// bringen können, ~/.ssh oder Passwortdateien hochzuladen. Standard ~/Downloads, änderbar per BRAVE_MCP_UPLOAD_DIR.
+export function uploadRoot() {
+  return process.env.BRAVE_MCP_UPLOAD_DIR || path.join(os.homedir(), 'Downloads');
+}
+export async function uploadPaths(files, root = uploadRoot()) {
+  const base = await fs.realpath(root).catch(() => { throw new Error(`Upload-Ordner ${root} existiert nicht.`); });
+  return Promise.all(files.map(async file => {
+    // Relative Pfade gelten relativ zum Upload-Ordner; realpath löst Symlinks auf, damit kein Link hinausführt.
+    const real = await fs.realpath(path.resolve(base, file)).catch(() => { throw new Error(`Datei nicht gefunden: ${file}`); });
+    const rel = path.relative(base, real);
+    if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error(`Uploads sind nur aus ${base} erlaubt (BRAVE_MCP_UPLOAD_DIR).`);
+    return real;
+  }));
 }
 
 export class Brave {
@@ -196,7 +213,7 @@ export class Brave {
     if (method === 'upload') {
       const element = await this.element(args.tabId, args.ref, true);
       if (!(await element.evaluate(e => e.matches('input[type=file]')))) throw new Error('Referenz ist kein Datei-Uploadfeld.');
-      await element.setInputFiles(args.files.map(file => path.resolve(file)), { timeout: 10000 }); return { uploaded: args.files.length };
+      await element.setInputFiles(await uploadPaths(args.files), { timeout: 10000 }); return { uploaded: args.files.length };
     }
     if (method === 'screenshot') {
       const { buffer, mimeType } = await this.shot(await this.page(args.tabId), args.width);

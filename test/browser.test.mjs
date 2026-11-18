@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Brave, localEndpoint, API_VERSION, pageControls, stripIcons } from '../src/browser.mjs';
+import { Brave, localEndpoint, API_VERSION, pageControls, stripIcons, uploadPaths } from '../src/browser.mjs';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { versionError } from '../src/bridge.mjs';
 
 test('Verbindet ausschließlich den lokalen Debugging-Endpunkt', () => {
@@ -69,4 +72,19 @@ test('Tabs des Nutzers lassen sich nicht schließen', async () => {
   brave.page = async () => ({ close: async () => { closed = true; } });
   await assert.rejects(brave.call('close', { tabId: 'tab-nutzer' }), /Nur mit brave_open/);
   assert.equal(closed, false);
+});
+test('Uploads nur aus dem Upload-Ordner, auch nicht über Symlinks oder ../', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'brave-mcp-upload-'));
+  try {
+    const root = path.join(tmp, 'erlaubt');
+    await fs.mkdir(root);
+    await fs.writeFile(path.join(root, 'bild.png'), 'x');
+    await fs.writeFile(path.join(tmp, 'geheim.txt'), 'x');
+    await fs.symlink(path.join(tmp, 'geheim.txt'), path.join(root, 'link.txt'));
+    const [ok] = await uploadPaths(['bild.png'], root);
+    assert.equal(ok, await fs.realpath(path.join(root, 'bild.png')));
+    for (const file of [path.join(tmp, 'geheim.txt'), '../geheim.txt', 'link.txt']) {
+      await assert.rejects(uploadPaths([file], root), /nur aus/, `abgewiesen: ${file}`);
+    }
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
 });

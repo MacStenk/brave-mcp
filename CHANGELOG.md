@@ -9,6 +9,15 @@ promises and which versions get fixes.
 
 ## [Unreleased]
 
+### Security
+
+- **Breaking:** `brave_upload` only accepts files from one folder (`~/Downloads`
+  by default, set with `BRAVE_MCP_UPLOAD_DIR`). Before, an agent could upload any
+  file the process could read, so a page with hidden instructions could have
+  asked for your SSH keys. Affects agents that upload from other folders: move
+  the file into the upload folder or set the variable, then restart the
+  background process with `node src/server.mjs --stop`.
+
 ### Changed
 
 - The README is now in English; the German version lives in `README.de.md`.

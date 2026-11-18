@@ -37,6 +37,12 @@ verbindet sich beim nächsten Aufruf selbst neu.
 Für ein anderes Brave-Profil `BRAVE_USER_DATA_DIR` auf dessen Benutzerverzeichnis setzen.
 Es werden weder Profile noch Cookies oder Schlüsseldateien kopiert.
 
+`brave_upload` nimmt nur Dateien aus einem Ordner, standardmäßig `~/Downloads`.
+Ein anderer Ordner lässt sich mit `BRAVE_MCP_UPLOAD_DIR` setzen. Pfade außerhalb,
+`../` und Symlinks, die hinausführen, werden abgewiesen; so kann eine Website einen
+Agenten nicht dazu bringen, SSH-Schlüssel hochzuladen. Der gemeinsame Prozess liest
+die Variable beim Start; nach einer Änderung `node src/server.mjs --stop`.
+
 ## Clients
 
 Die Beispiele in `config/` enthalten Platzhalter-Pfade; beim Übernehmen den absoluten
@@ -65,7 +71,7 @@ Verzeichniseintrag angelegt. Lizenz: MIT, siehe LICENSE.
 | `brave_read` | Sichtbaren Text, Bedienelemente und Frames lesen; Text mit `charOffset`, Bedienelemente mit `controlOffset` blätterbar, mit `controlFilter` durchsuchbar |
 | `brave_click` | Ein gelesenes Element anklicken, optional mit Wartezeit; Checkboxen und Schalter melden danach ihren Zustand |
 | `brave_fill` | Ein gelesenes Eingabefeld ausfüllen |
-| `brave_upload` | Lokale Dateien in einem Uploadfeld auswählen |
+| `brave_upload` | Dateien aus dem Upload-Ordner (`BRAVE_MCP_UPLOAD_DIR`, Standard `~/Downloads`) in einem Uploadfeld auswählen |
 | `brave_screenshot` | Screenshot des Tabs in CSS-Auflösung, optional auf Zielbreite verkleinert |
 | `brave_navigate` | Einen gewählten Tab zu HTTP(S) navigieren, optional mit Wartezeit |
 | `brave_open` | Eine Adresse in einem neuen Tab öffnen, optional mit Wartezeit |

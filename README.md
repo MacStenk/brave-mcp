@@ -52,6 +52,12 @@ shared process reconnects on the next call. For a different Brave profile, set
 `BRAVE_USER_DATA_DIR` to its user data directory. No profiles, cookies or key
 files are ever copied.
 
+`brave_upload` only accepts files from one folder, `~/Downloads` by default. Set
+`BRAVE_MCP_UPLOAD_DIR` to use another one. Paths outside it, `../` tricks and
+symlinks pointing out of it are refused, so a page cannot talk an agent into
+uploading your SSH keys. The shared background process reads the variable when it
+starts; after changing it, run `node src/server.mjs --stop`.
+
 ## Clients
 
 The examples in `config/` contain placeholder paths; substitute the absolute
@@ -80,7 +86,7 @@ MIT, see LICENSE.
 | `brave_read` | Read visible text, controls and frames; text paged via `charOffset`, controls paged via `controlOffset`, searchable via `controlFilter` |
 | `brave_click` | Click a previously read element, optionally with wait time; checkboxes and switches report their state afterwards |
 | `brave_fill` | Fill a previously read input field |
-| `brave_upload` | Select local files in an upload field |
+| `brave_upload` | Select files from the upload folder (`BRAVE_MCP_UPLOAD_DIR`, default `~/Downloads`) in an upload field |
 | `brave_screenshot` | Screenshot of a tab at CSS resolution, optionally downscaled to a target width |
 | `brave_navigate` | Navigate a selected tab to HTTP(S), optionally with wait time |
 | `brave_open` | Open an address in a new tab, optionally with wait time |

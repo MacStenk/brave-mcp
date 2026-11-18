@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 
 const fixture = http.createServer((request, response) => {
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -12,10 +13,14 @@ const fixture = http.createServer((request, response) => {
   response.end(request.url === '/frame' ? '<button onclick="this.textContent=\'Frame bestätigt\'">Frame-Test</button>' : request.url === '/next' ? '<!doctype html><title>Brave MCP – nächste Seite</title><h1>Nächste Seite erreicht</h1><p><a href="/">Zurück</a></p>' : `<!doctype html><title>Brave MCP – lokaler Funktionstest</title><h1>Lokaler MCP-Test</h1><label>Name <input id="name"></label><button onclick="document.querySelector('#result').textContent='Hallo '+document.querySelector('#name').value">Bestätigen</button><p id="result"></p><label>Datei <input type="file" hidden onchange="document.querySelector('#file').textContent=this.files[0].name"></label><p id="file"></p><iframe src="/frame"></iframe><a href="/next">Weiter</a><p id="long"></p><script>document.querySelector('#long').textContent='x'.repeat(15000)+'ENDE-MARKER'</script>`);
 });
 await new Promise(resolve => fixture.listen(0, '127.0.0.1', resolve));
+// Frischer Hintergrundprozess, damit er den Upload-Ordner dieses Tests übernimmt (der Prozess liest ihn beim Start).
+const server = fileURLToPath(new URL('../src/server.mjs', import.meta.url));
+execFileSync(process.execPath, [server, '--stop']);
+const env = { ...process.env, BRAVE_MCP_UPLOAD_DIR: fileURLToPath(new URL('.', import.meta.url)) };
 const clients = [];
 async function client(name) {
   const client = new Client({ name, version: '0.1.0' });
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [fileURLToPath(new URL('../src/server.mjs', import.meta.url))], stderr: 'pipe' }));
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [server], env, stderr: 'pipe' }));
   clients.push(client); return client;
 }
 async function call(client, name, args = {}) {
@@ -33,6 +38,7 @@ try {
   await call(b, 'brave_click', { tabId, ref: ref('Bestätigen') });
   assert.match((await call(a, 'brave_read', { tabId })).text, /Hallo MCP/);
   const upload = read.controls.find(control => control.type === 'file');
+  await call(a, 'brave_upload', { tabId, ref: upload.ref, files: [fileURLToPath(new URL('../package.json', import.meta.url))] }).then(() => assert.fail('Upload außerhalb des Upload-Ordners wurde erlaubt'), error => assert.match(error.message, /nur aus/));
   await call(a, 'brave_upload', { tabId, ref: upload.ref, files: [fileURLToPath(new URL('./browser.test.mjs', import.meta.url))] });
   assert.match((await call(a, 'brave_read', { tabId })).text, /browser.test.mjs/);
   const frameId = read.frames.find(frame => frame.url.endsWith('/frame')).frameId;
@@ -79,4 +85,6 @@ try {
 } finally {
   await Promise.allSettled(clients.map(client => client.close()));
   fixture.close();
+  // Der Hintergrundprozess trägt den Upload-Ordner dieses Tests; beenden, damit der nächste Client mit seinem eigenen startet.
+  execFileSync(process.execPath, [server, '--stop']);
 }
