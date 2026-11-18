@@ -1,0 +1,49 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems go through private reporting (see SECURITY.md), not here.
+        Please remove personal data (URLs with tokens, page text, screenshots of logged-in pages) before posting.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Tool calls and arguments, if possible.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: brave-session-mcp version
+      placeholder: "0.3.0 (npx brave-session-mcp, or git commit)"
+    validations:
+      required: true
+  - type: input
+    id: brave
+    attributes:
+      label: Brave version and channel
+      placeholder: "Nightly 1.99.57"
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: OS, Node version, MCP client
+      placeholder: "macOS 26, Node 22.14, Claude Desktop"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Error message or log
+      description: The tool's error text, or the end of /tmp/brave-session-mcp-<uid>/bridge.log.
+      render: text

@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest a change or a new tool.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a one-person project with a narrow scope: safe, token-efficient access to the Brave you are logged into.
+        Network inspection, performance traces and headless CI are out of scope; Chrome DevTools MCP and Playwright MCP cover them.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The task, and where the current tools stop you.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help?
+  - type: textarea
+    id: safety
+    attributes:
+      label: Could this let a web page or an agent do more than the user intends?
+      description: Every new capability runs inside your logged-in browser. A short thought is enough.
