@@ -173,6 +173,15 @@ Häkchen „Crawl all subdomains“ im Site-Scan-Dialog. Ausbauauftrag: bei verd
 Eingabefeldern auf das zugehörige `<label>` klicken (oder ein eigenes `brave_check`
 mit Sollzustand) und den neuen Zustand in der Antwort melden.
 
+`brave_read` liefert höchstens 200 Bedienelemente in DOM-Reihenfolge und meldet nicht,
+dass abgeschnitten wurde; Bedienelemente lassen sich anders als der Text nicht blättern.
+Auf Seiten mit großer Navigation sind die eigentlichen Schalter dann unerreichbar.
+Beobachtet am 18.11.2026 im Cloudflare-Dashboard (Sicherheit → Einstellungen →
+Bot-Traffic): Die Seitenleiste füllt alle 200 Plätze, der Schalter „Bot Fight“-Modus
+kommt nicht vor (Schalter ohne Beschriftung, `role="switch"`). Ausbauauftrag: Kürzung
+melden (`controlsTotal`, `nextControlOffset`), Bedienelemente blätterbar oder nach Text
+filterbar machen und Schalter mit `role="switch"`/`aria-checked` samt Zustand aufnehmen.
+
 ## Verbindung beenden
 
 ```sh
