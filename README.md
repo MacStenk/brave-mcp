@@ -90,7 +90,9 @@ Client zu überlassen:
   auf Retina-Displays kostet das grob ein Viertel der Bild-Tokens. Der optionale
   `width`-Parameter (320–1280) verkleinert zusätzlich. Bild-Tokens richten sich
   nach Pixelabmessungen, nicht nach Dateigröße; JPEG-Kompression spart also keine
-  Tokens, kleinere Abmessungen schon.
+  Tokens, kleinere Abmessungen schon. Breiten von 320–512 erreichen das Niveau von
+  OpenAIs `detail: low`; der echte Parameter lässt sich nur beim aufrufenden Client
+  setzen, nicht serverseitig.
 
 Eigene Messung vom 18.11.2026 (`node test/tokens.mjs`, dieses Retina-Display,
 Fenster 2302×1364 CSS-Pixel, Retina-Faktor 2; Tokenwerte sind Näherungen nach
