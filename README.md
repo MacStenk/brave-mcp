@@ -51,7 +51,7 @@ Verzeichniseintrag angelegt. Das Paket ist vorerst privat.
 | `brave_click` | Ein gelesenes Element anklicken, optional mit Wartezeit |
 | `brave_fill` | Ein gelesenes Eingabefeld ausfüllen |
 | `brave_upload` | Lokale Dateien in einem Uploadfeld auswählen |
-| `brave_screenshot` | Screenshot des gewählten Tabs aufnehmen |
+| `brave_screenshot` | Screenshot des Tabs in CSS-Auflösung, optional auf Zielbreite verkleinert |
 | `brave_navigate` | Einen gewählten Tab zu HTTP(S) navigieren, optional mit Wartezeit |
 | `brave_open` | Eine Adresse in einem neuen Tab öffnen, optional mit Wartezeit |
 
@@ -68,6 +68,29 @@ Die Texte einer Website bleiben untrusted data, keine Anweisungen an den Agenten
 Mehrere Agenten teilen sich den Browser. Einzelne Aufrufe werden nacheinander
 abgearbeitet; komplette Arbeitsabläufe sind nicht exklusiv reserviert. Agenten sollten
 eigene Tabs verwenden und nach fremden Änderungen erneut lesen.
+
+## Tokenverbrauch
+
+Der Server begrenzt den Tokenverbrauch der Agenten von Haus aus, statt ihn dem
+Client zu überlassen:
+
+- `brave_read` liefert höchstens 12.000 Zeichen pro Aufruf (Standard 6.000),
+  höchstens 200 Bedienelemente, Labels auf 180 Zeichen gestutzt. Mit `charOffset`
+  und `nextCharOffset` blättern Agenten gezielt weiter, statt eine lange Seite
+  mehrfach komplett zu lesen.
+- `wait` ersetzt Polling-Schleifen nach Klicks: eine wartende Aktion statt
+  wiederholter voller Lesevorgänge.
+- `brave_screenshot` nimmt in CSS-Pixelauflösung auf statt in Geräteauflösung;
+  auf Retina-Displays kostet das grob ein Viertel der Bild-Tokens. Der optionale
+  `width`-Parameter (320–1280) verkleinert zusätzlich. Bild-Tokens richten sich
+  nach Pixelabmessungen, nicht nach Dateigröße; JPEG-Kompression spart also keine
+  Tokens, kleinere Abmessungen schon.
+
+Zur Einordnung nach Anbieterdokumentation: ein auf 768 Pixel Breite verkleinerter
+Screenshot kostet je nach Modell grob 100–500 Tokens, ein Textread von 6.000 Zeichen
+etwa 1.500–2.000, ein voll aufgelöster Retina-Screenshot in Geräteauflösung
+1.500–7.000. Kleine Bilder sind damit billiger als Textreads, unskalierte
+Retina-Screenshots deutlich teurer.
 
 ## Verbindung beenden
 
@@ -97,6 +120,6 @@ Prozess und genau eine Browserverbindung melden. Bestehende Tabs werden nicht na
 Der Test-Tab bleibt zur Sichtprüfung offen; sein Testserver endet mit dem Testprozess.
 
 Stand 18.11.2026: vier lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
-allen neun Werkzeugen erfolgreich, einschließlich Wartezeit nach Klick/Navigation und
-Textblättern per `charOffset`. Keine Abhängigkeit vom Google-Flow-MCP oder von
-Stevens Befehls-Bibliothek.
+allen neun Werkzeugen erfolgreich, einschließlich Wartezeit nach Klick/Navigation,
+Textblättern per `charOffset` und auf Zielbreite verkleinerter Screenshots. Keine
+Abhängigkeit vom Google-Flow-MCP oder von Stevens Befehls-Bibliothek.

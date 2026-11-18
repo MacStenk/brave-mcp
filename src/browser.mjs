@@ -84,6 +84,25 @@ export class Brave {
     const left = until - Date.now();
     if (left > 0) await page.waitForTimeout(left).catch(() => {});
   }
+  async shot(page, width) {
+    // CSS-Pixel statt Gerätepixel: auf Retina grob ein Viertel der Bild-Tokens.
+    const buffer = await page.screenshot({ type: 'png', scale: 'css', timeout: 8000 });
+    if (!width) return { buffer, mimeType: 'image/png' };
+    try {
+      // Im Tab selbst verkleinern; das Bild wird dafür nicht ins DOM eingehängt.
+      const scaled = await page.evaluate(async ([dataUrl, target]) => {
+        const image = new Image(); image.src = dataUrl; await image.decode();
+        const height = Math.max(1, Math.round(image.naturalHeight * target / image.naturalWidth));
+        const canvas = document.createElement('canvas'); canvas.width = target; canvas.height = height;
+        canvas.getContext('2d').drawImage(image, 0, 0, target, height);
+        return canvas.toDataURL('image/jpeg', 0.85);
+      }, [`data:image/png;base64,${buffer.toString('base64')}`, width]);
+      return { buffer: Buffer.from(scaled.split(',')[1], 'base64'), mimeType: 'image/jpeg' };
+    } catch {
+      // Strenge Seitenregeln (CSP) können data:-Bilder blockieren; dann unverkleinert.
+      return { buffer, mimeType: 'image/png' };
+    }
+  }
   async element(tabId, ref, upload = false) {
     await this.page(tabId);
     const item = this.refs.get(ref);
@@ -111,8 +130,8 @@ export class Brave {
       await element.setInputFiles(args.files.map(file => path.resolve(file)), { timeout: 10000 }); return { uploaded: args.files.length };
     }
     if (method === 'screenshot') {
-      const page = await this.page(args.tabId);
-      return { image: (await page.screenshot({ type: 'png', timeout: 8000 })).toString('base64') };
+      const { buffer, mimeType } = await this.shot(await this.page(args.tabId), args.width);
+      return { image: buffer.toString('base64'), mimeType };
     }
     if (method === 'navigate' || method === 'open') {
       const url = new URL(args.url);

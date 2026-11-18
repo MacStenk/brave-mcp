@@ -49,10 +49,15 @@ try {
   const screenshot = await b.callTool({ name: 'brave_screenshot', arguments: { tabId } });
   assert.equal(screenshot.content[0].type, 'image');
   assert.ok(Buffer.from(screenshot.content[0].data, 'base64').length > 100);
+  const small = await b.callTool({ name: 'brave_screenshot', arguments: { tabId, width: 480 } });
+  const smallBytes = Buffer.from(small.content[0].data, 'base64');
+  assert.equal(small.content[0].mimeType, 'image/jpeg');
+  assert.equal(smallBytes[0], 0xff, 'JPEG-Magiebyte');
+  assert.ok(smallBytes.length < Buffer.from(screenshot.content[0].data, 'base64').length, 'verkleinerter Screenshot ist kleiner');
   const sa = await call(a, 'brave_status'), sb = await call(b, 'brave_status');
   assert.equal(sa.daemonPid, sb.daemonPid); assert.equal(sa.browserConnections, 1); assert.equal(sb.browserConnections, 1);
   await call(a, 'brave_navigate', { tabId, url: 'about:blank' }).then(() => assert.fail('Interne Navigation wurde erlaubt'), () => {});
-  console.log(JSON.stringify({ ok: true, tools: 9, clients: 2, browserConnections: 1, checks: ['initialize', 'tools/list', 'fill', 'trusted click', 'hidden upload', 'iframe', 'charOffset paging', 'wait after click navigation', 'screenshot', 'client sharing', 'URL validation'] }));
+  console.log(JSON.stringify({ ok: true, tools: 9, clients: 2, browserConnections: 1, checks: ['initialize', 'tools/list', 'fill', 'trusted click', 'hidden upload', 'iframe', 'charOffset paging', 'wait after click navigation', 'screenshot', 'scaled screenshot', 'client sharing', 'URL validation'] }));
   // Testseite leer zurücklassen; fremde Tabs bleiben unverändert.
   await call(a, 'brave_navigate', { tabId, url: `http://127.0.0.1:${fixture.address().port}/done` });
 } finally {

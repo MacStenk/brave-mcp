@@ -18,7 +18,7 @@ if (process.argv.includes('--bridge')) {
     server.registerTool(name, { description, inputSchema, annotations: { readOnlyHint, destructiveHint: !readOnlyHint, openWorldHint: true } }, async args => {
       try {
         const result = await request(method, args);
-        if (result?.image) return { content: [{ type: 'image', mimeType: 'image/png', data: result.image }] };
+        if (result?.image) return { content: [{ type: 'image', mimeType: result.mimeType || 'image/png', data: result.image }] };
         return { content: [{ type: 'text', text: JSON.stringify(result) }] };
       } catch (error) { return { isError: true, content: [{ type: 'text', text: error.message }] }; }
     });
@@ -29,7 +29,7 @@ if (process.argv.includes('--bridge')) {
   tool('brave_click', 'click', 'Klickt eine zuvor gelesene Elementreferenz. Bei veränderten Element erneut lesen; nie blind wiederholen. wait wartet danach auf Navigation und Beruhigung, bevor zurückgekehrt wird.', { tabId, ref, wait });
   tool('brave_fill', 'fill', 'Füllt ein sichtbares Eingabefeld anhand seiner tabgebundenen Referenz.', { tabId, ref, text: z.string().max(100000) });
   tool('brave_upload', 'upload', 'Wählt ausdrücklich angegebene lokale Dateien in einem zuvor gelesenen Datei-Uploadfeld aus.', { tabId, ref, files: z.array(z.string().min(1)).min(1).max(10) });
-  tool('brave_screenshot', 'screenshot', 'Zeigt einen Screenshot des angegebenen Tabs.', { tabId }, true);
+  tool('brave_screenshot', 'screenshot', 'Zeigt einen Screenshot des angegebenen Tabs in CSS-Pixelauflösung statt Geräteauflösung (auf Retina-Displays deutlich weniger Bild-Tokens). Bild-Tokens richten sich nach Pixelabmessungen, nicht nach Dateigröße.', { tabId, width: z.number().int().min(320).max(1280).optional().describe('Zielbreite in Pixeln (320–1280); verkleinert das Bild als JPEG weiter. Weglassen: volle CSS-Breite als PNG.') }, true);
   tool('brave_navigate', 'navigate', 'Navigiert einen ausdrücklich ausgewählten Tab zu einer HTTP(S)-Adresse. wait wartet danach zusätzlich ab.', { tabId, url: z.string().url(), wait });
   tool('brave_open', 'open', 'Öffnet eine ausdrücklich angegebene HTTP(S)-Adresse in einem neuen Tab. wait wartet danach zusätzlich ab.', { url: z.string().url(), wait });
   await server.connect(new StdioServerTransport());
