@@ -28,6 +28,8 @@ node src/server.mjs
 
 Requires Node ≥ 22, pnpm and Brave Nightly (remote debugging enabled once, see below). Install means `git clone` — this is not published to a package registry. For regular Brave instead of Nightly, set `BRAVE_USER_DATA_DIR` to its profile directory (see below).
 
+*Unofficial community project — Brave is a trademark of Brave Software, Inc.; this tool is not affiliated with or endorsed by them.*
+
 ---
 
 Betrieb und alle Details auf Deutsch:
