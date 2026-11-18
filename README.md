@@ -90,7 +90,8 @@ Client zu überlassen:
   auf Retina-Displays kostet das grob ein Viertel der Bild-Tokens. Der optionale
   `width`-Parameter (320–1280) verkleinert zusätzlich. Bild-Tokens richten sich
   nach Pixelabmessungen, nicht nach Dateigröße; JPEG-Kompression spart also keine
-  Tokens, kleinere Abmessungen schon. Breiten von 320–512 erreichen das Niveau von
+  Tokens, kleinere Abmessungen schon. Auch WebP oder neurale Codecs ändern daran
+  nichts — sie optimieren Bytes, nicht Pixel. Breiten von 320–512 erreichen das Niveau von
   OpenAIs `detail: low`; der echte Parameter lässt sich nur beim aufrufenden Client
   setzen, nicht serverseitig.
 
