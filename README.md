@@ -91,7 +91,10 @@ Client zu überlassen:
   `width`-Parameter (320–1280) verkleinert zusätzlich. Bild-Tokens richten sich
   nach Pixelabmessungen, nicht nach Dateigröße; JPEG-Kompression spart also keine
   Tokens, kleinere Abmessungen schon. Auch WebP oder neurale Codecs ändern daran
-  nichts — sie optimieren Bytes, nicht Pixel. Breiten von 320–512 erreichen das Niveau von
+  nichts — sie optimieren Bytes, nicht Pixel. Dieser Server speichert Screenshots
+  gar nicht (nur Übergabe über den lokalen Socket), daher ist JPEG bewusst gewählt;
+  käme je eine Speicherung hinzu, wäre WebP passend (25–35 % kleiner, von allen
+  Vision-APIs akzeptiert). Breiten von 320–512 erreichen das Niveau von
   OpenAIs `detail: low`; der echte Parameter lässt sich nur beim aufrufenden Client
   setzen, nicht serverseitig.
 
