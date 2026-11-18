@@ -1,5 +1,7 @@
 # Brave Session MCP
 
+English · [Deutsch](README.de.md)
+
 A local MCP server that gives your AI agents safe, token-efficient access to the Brave browser you're already logged into.
 
 **Status:** early, actively maintained by one person · tested on macOS with Brave Nightly; Linux plausible, untested · License: [MIT](LICENSE)
@@ -14,7 +16,7 @@ The official [@playwright/mcp](https://github.com/microsoft/playwright-mcp) and 
 
 - **Your real session** — agents work where you are already logged in; nothing to re-authenticate.
 - **One shared connection** — a single background daemon serves all local MCP clients over one CDP connection.
-- **Token-efficient by design** — capped reads, paged text (`charOffset`), waited actions (`wait`), CSS-scaled screenshots; measured numbers in the [Tokenverbrauch](#tokenverbrauch) section below.
+- **Token-efficient by design** — capped reads, paged text (`charOffset`), waited actions (`wait`), CSS-scaled screenshots; measured numbers in the [Token usage](#token-usage) section below.
 - **Small attack surface** — no arbitrary page-script execution; page content is treated as untrusted data.
 
 Not for you when you need headless cross-platform CI automation — Playwright MCP is the better fit there.
@@ -30,170 +32,158 @@ Requires Node ≥ 22, pnpm and Brave Nightly (remote debugging enabled once, see
 
 *Unofficial community project — Brave is a trademark of Brave Software, Inc.; this tool is not affiliated with or endorsed by them.*
 
----
+## Running the server
 
-Betrieb und alle Details auf Deutsch:
+Requirements: Node.js 22+, pnpm and Brave Nightly. No separately downloaded
+test browser and no extension required.
 
-## Start
+The server speaks MCP over stdin/stdout. In your MCP client, start `node`
+directly — not a package manager that prints extra output to stdout.
 
-Voraussetzungen: Node.js ab 22, pnpm und Brave Nightly. Kein separat heruntergeladener
-Testbrowser und keine Erweiterung nötig.
-
-```sh
-pnpm install --frozen-lockfile
-node src/server.mjs
-```
-
-Der Server spricht MCP über stdin/stdout. Daher im MCP-Client direkt `node` starten,
-nicht einen Paketmanager, der zusätzliche Meldungen auf stdout ausgibt.
-
-Einmal in Brave Nightly `brave://inspect/#remote-debugging` öffnen und die Freigabe
-für diese Browserinstanz aktivieren. Brave kann die erste Verbindung bestätigen lassen.
-Danach bleibt sie bis zum Browserende oder bewussten Trennen bestehen.
-Nach einem Browserneustart genügt die neue Freigabe in Brave; der gemeinsame Prozess
-verbindet sich beim nächsten Aufruf selbst neu.
-Für ein anderes Brave-Profil `BRAVE_USER_DATA_DIR` auf dessen Benutzerverzeichnis setzen.
-Es werden weder Profile noch Cookies oder Schlüsseldateien kopiert.
+Open `brave://inspect/#remote-debugging` in Brave Nightly once and enable the
+permission for that browser instance. Brave may ask you to confirm the first
+connection. It then persists until the browser closes or you disconnect it.
+After a browser restart, granting the permission in Brave again is enough; the
+shared process reconnects on the next call. For a different Brave profile, set
+`BRAVE_USER_DATA_DIR` to its user data directory. No profiles, cookies or key
+files are ever copied.
 
 ## Clients
 
-Die Beispiele in `config/` enthalten Platzhalter-Pfade; beim Übernehmen den absoluten
-Pfad des eigenen Klons einsetzen. Startet ein Client `node` nicht, weil er keine
-PATH-Umgebung erbt (bei grafischen Apps üblich), den absoluten Node-Pfad aus
-`which node` als command eintragen.
+The examples in `config/` contain placeholder paths; substitute the absolute
+path of your own clone. If a client cannot start `node` because it inherits no
+PATH environment (common for GUI apps), use the absolute node path from
+`which node` as the command.
 
-- Claude Desktop und andere lokale Clients mit `mcpServers`: Eintrag aus `config/mcp.json` übernehmen.
-- Codex und andere TOML-Clients: `config/codex.toml` als Beispiel verwenden.
-- ZCode: Eintrag aus `config/zcode.json` in `~/.zcode/cli/config.json` unter `mcp.servers` übernehmen.
-- Andere Agenten können denselben stdio-Server starten, sofern ihre Anwendung lokale MCP-Server unterstützt.
-- ChatGPT im normalen Web und Grok im Web sind dadurch noch nicht automatisch verbunden.
-  Eine Anwendung, die nur entfernte MCP-Server unterstützt, benötigt eine zusätzliche
-  lokale Brücke oder eine passende Host-Integration. Dieser Server veröffentlicht keinen Netzwerkzugang.
+- Claude Desktop and other local clients using `mcpServers`: copy the entry from `config/mcp.json`.
+- Codex and other TOML clients: use `config/codex.toml` as the example.
+- ZCode: copy the entry from `config/zcode.json` into `~/.zcode/cli/config.json` under `mcp.servers`.
+- Other agents can start the same stdio server as long as their application supports local MCP servers.
+- ChatGPT on the web and Grok on the web are not connected automatically. An
+  application that only supports remote MCP servers needs an additional local
+  bridge or a matching host integration. This server exposes no network access.
 
-Die Client-Konfigurationen wurden als Beispiele angelegt; bestehende App-Einstellungen
-wurden nicht automatisch verändert. Es wurde kein Plugin und kein öffentlicher
-Verzeichniseintrag angelegt. Lizenz: MIT, siehe LICENSE.
+The client configurations are examples; existing app settings were not changed
+automatically. No plugin and no public directory listing were created. License:
+MIT, see LICENSE.
 
-## Werkzeuge
+## Tools
 
-| Name | Funktion |
+| Name | Function |
 | --- | --- |
-| `brave_status` | Gemeinsame Verbindung und Prozess prüfen |
-| `brave_tabs` | Offene Tabs mit stabilen IDs auflisten |
-| `brave_read` | Sichtbaren Text, Bedienelemente und Frames lesen; Text mit `charOffset`, Bedienelemente mit `controlOffset` blätterbar, mit `controlFilter` durchsuchbar |
-| `brave_click` | Ein gelesenes Element anklicken, optional mit Wartezeit; Checkboxen und Schalter melden danach ihren Zustand |
-| `brave_fill` | Ein gelesenes Eingabefeld ausfüllen |
-| `brave_upload` | Lokale Dateien in einem Uploadfeld auswählen |
-| `brave_screenshot` | Screenshot des Tabs in CSS-Auflösung, optional auf Zielbreite verkleinert |
-| `brave_navigate` | Einen gewählten Tab zu HTTP(S) navigieren, optional mit Wartezeit |
-| `brave_open` | Eine Adresse in einem neuen Tab öffnen, optional mit Wartezeit |
-| `brave_close` | Einen selbst mit `brave_open` geöffneten Tab schließen; Tabs des Nutzers bleiben unberührt |
+| `brave_status` | Check the shared connection and process |
+| `brave_tabs` | List open tabs with stable IDs |
+| `brave_read` | Read visible text, controls and frames; text paged via `charOffset`, controls paged via `controlOffset`, searchable via `controlFilter` |
+| `brave_click` | Click a previously read element, optionally with wait time; checkboxes and switches report their state afterwards |
+| `brave_fill` | Fill a previously read input field |
+| `brave_upload` | Select local files in an upload field |
+| `brave_screenshot` | Screenshot of a tab at CSS resolution, optionally downscaled to a target width |
+| `brave_navigate` | Navigate a selected tab to HTTP(S), optionally with wait time |
+| `brave_open` | Open an address in a new tab, optionally with wait time |
+| `brave_close` | Close a tab you opened with `brave_open`; the user's own tabs stay untouched |
 
-Zuerst `brave_tabs`, danach `brave_read` mit einer konkreten Tab-ID aufrufen.
-`brave_read` nennt `charsTotal` und `nextCharOffset`; mit `charOffset` blättern
-Agenten durch Seiten, die länger als das Leselimit sind. Klicken, Navigieren und
-Öffnen akzeptieren `wait` in Millisekunden und kehren erst nach dem Laden und einer
-kurzen Beruhigungsphase zurück; ohne `wait` kehrt die Aktion sofort zurück.
-Eingebettete Anwendungen lassen sich anschließend über die zurückgegebenen Frame-IDs
-lesen. Aktionen verwenden Referenzen auf konkrete DOM-Elemente, gebunden an ihren Tab.
-Veränderte, abgelaufene und tabfremde Referenzen werden zurückgewiesen.
-Bedienelemente: `controlsTotal` nennt alle Treffer, `nextControlOffset` die nächste
-Seite (sonst `null`). Auf Seiten mit großer Navigation sucht `controlFilter` gezielt
-nach Beschriftung oder Zeilentext, statt 200 Menülinks zu lesen. Checkboxen,
-Radiobuttons und Schalter (`role="switch"`) tragen `checked`; unbeschriftete Elemente
-den Text ihrer Zeile als `context`. Liegt ein Icon über einer Checkbox, klickt
-`brave_click` auf die Position statt abzubrechen.
-Die Texte einer Website bleiben untrusted data, keine Anweisungen an den Agenten.
+Call `brave_tabs` first, then `brave_read` with a concrete tab ID.
+`brave_read` reports `charsTotal` and `nextCharOffset`; with `charOffset`,
+agents page through pages longer than the read limit. Click, navigate and open
+accept `wait` in milliseconds and return only after the page has loaded plus a
+short settle phase; without `wait`, the action returns immediately. Embedded
+applications are read through the returned frame IDs. Actions use references to
+concrete DOM elements, bound to their tab. Changed, expired and foreign-tab
+references are rejected. Controls: `controlsTotal` reports all matches,
+`nextControlOffset` the next page (otherwise `null`). On pages with huge
+navigations, `controlFilter` searches by label or row text instead of reading
+200 menu links. Checkboxes, radio buttons and switches (`role="switch"`) carry
+`checked`; unlabeled elements carry their row text as `context`. When an icon
+sits on top of a checkbox, `brave_click` clicks the position instead of
+failing. Website text remains untrusted data — never an instruction to the agent.
 
-Mehrere Agenten teilen sich den Browser. Einzelne Aufrufe werden nacheinander
-abgearbeitet; komplette Arbeitsabläufe sind nicht exklusiv reserviert. Agenten sollten
-eigene Tabs verwenden und nach fremden Änderungen erneut lesen.
+Multiple agents share the browser. Individual calls are processed one after
+another; whole workflows are not reserved exclusively. Agents should use their
+own tabs and re-read after changes made by others.
 
-## Tokenverbrauch
+## Token usage
 
-Der Server begrenzt den Tokenverbrauch der Agenten von Haus aus, statt ihn dem
-Client zu überlassen:
+The server limits agent token usage by design instead of leaving it to the
+client:
 
-- `brave_read` liefert höchstens 12.000 Zeichen pro Aufruf (Standard 6.000),
-  höchstens 200 Bedienelemente pro Aufruf (mit `controlsTotal` und `nextControlOffset`
-  blätterbar), Labels auf 180 Zeichen gestutzt, Icon-Zeichen aus Webfonts (Unicode
-  Private Use Area) entfernt. Mit `charOffset`
-  und `nextCharOffset` blättern Agenten gezielt weiter, statt eine lange Seite
-  mehrfach komplett zu lesen.
-- `brave_read` liefert sichtbaren Text statt HTML-Quelltext: Mark-up, Attribute
-  und Skriptblöcke sind selbst ein Vielfaches des sichtbaren Texts und bleiben
-  draußen.
-- Aktionen senden nur eine kompakte Elementreferenz statt einer kompletten
-  Elementbeschreibung; `brave_tabs` und `brave_status` sind schlanke
-  Metadaten-Aufrufe ohne Seiteninhalt.
-- `wait` ersetzt Polling-Schleifen nach Klicks: eine wartende Aktion statt
-  wiederholter voller Lesevorgänge.
-- `brave_screenshot` nimmt in CSS-Pixelauflösung auf statt in Geräteauflösung;
-  auf Retina-Displays kostet das grob ein Viertel der Bild-Tokens. Der optionale
-  `width`-Parameter (320–1280) verkleinert zusätzlich. Bild-Tokens richten sich
-  nach Pixelabmessungen, nicht nach Dateigröße; JPEG-Kompression spart also keine
-  Tokens, kleinere Abmessungen schon. Auch WebP oder neurale Codecs ändern daran
-  nichts — sie optimieren Bytes, nicht Pixel. Dieser Server speichert Screenshots
-  gar nicht (nur Übergabe über den lokalen Socket), daher ist JPEG bewusst gewählt;
-  käme je eine Speicherung hinzu, wäre WebP passend (25–35 % kleiner, von allen
-  Vision-APIs akzeptiert). Breiten von 320–512 erreichen das Niveau von
-  OpenAIs `detail: low`; der echte Parameter lässt sich nur beim aufrufenden Client
-  setzen, nicht serverseitig.
+- `brave_read` returns at most 12,000 characters per call (default 6,000), at
+  most 200 controls per call (paged via `controlsTotal` and
+  `nextControlOffset`), labels truncated to 180 characters, icon characters
+  from web fonts (Unicode Private Use Area) removed. With `charOffset` and
+  `nextCharOffset`, agents page deliberately instead of re-reading a long page
+  in full.
+- `brave_read` returns visible text, not HTML source: markup, attributes and
+  script blocks are a multiple of the visible text and stay out.
+- Actions send only a compact element reference instead of a full element
+  description; `brave_tabs` and `brave_status` are lean metadata calls with no
+  page content.
+- `wait` replaces polling loops after clicks: one waiting action instead of
+  repeated full reads.
+- `brave_screenshot` captures at CSS pixel resolution instead of device
+  resolution; on retina displays that costs roughly a quarter of the image
+  tokens. The optional `width` parameter (320–1280) downscales further. Image
+  tokens follow pixel dimensions, not file size; JPEG compression saves no
+  tokens, smaller dimensions do. WebP and neural codecs change nothing either —
+  they optimize bytes, not pixels. This server never stores screenshots (local
+  socket delivery only), so JPEG is a deliberate choice; if storage ever gets
+  added, WebP would be the right pick (25–35% smaller, accepted by all vision
+  APIs). Widths of 320–512 reach the level of OpenAI's `detail: low`; the real
+  parameter can only be set by the calling client, not server-side.
 
-Eigene Messung vom 18.11.2026 (`node test/tokens.mjs`, dieses Retina-Display,
-Fenster 2302×1364 CSS-Pixel, Retina-Faktor 2; Tokenwerte sind Näherungen nach
-Anbieterformeln):
+Own measurement from 2026-11-18 (`node test/tokens.mjs`, this retina display,
+window 2302×1364 CSS pixels, retina factor 2; token values are approximations
+based on provider formulas):
 
-| Screenshot-Variante | Pixel | Claude klassisch | Claude 28-px-Patches | OpenAI high detail | Gemini |
+| Screenshot variant | Pixels | Claude classic | Claude 28-px patches | OpenAI high detail | Gemini |
 | --- | --- | --- | --- | --- | --- |
-| Geräteauflösung (alter Standard) | 4604×2728 | 16.747 | 16.170 | 2.125 | 6.192 |
-| CSS-Auflösung (aktueller Standard) | 2302×1364 | 4.187 | 4.067 | 2.125 | 1.548 |
+| Device resolution (old default) | 4604×2728 | 16,747 | 16,170 | 2,125 | 6,192 |
+| CSS resolution (current default) | 2302×1364 | 4,187 | 4,067 | 2,125 | 1,548 |
 | CSS + `width=768` | 768×455 | 466 | 476 | 425 | 258 |
 
-Ergebnis: Der Standard-Screenshot kostet durch die CSS-Auflösung rund ein Viertel
-des alten Werts (OpenAI skaliert ohnehin vorher auf 2048 Pixel herunter, dort bringt
-die CSS-Auflösung keine Ersparnis, `width` aber sehr wohl). Mit `width=768` fällt
-ein Screenshot auf 258–476 Tokens — unter einem Drittel eines `brave_read`-Aufrufs
-mit 6.000 Zeichen (rund 1.500–2.000 Tokens). Der alte Screenshot in Geräteauflösung
-auf Claude kostete dagegen so viel wie gut neun solcher Textreads.
+Result: the default screenshot costs about a quarter of the old value thanks to
+CSS resolution (OpenAI pre-scales to 2048 pixels anyway, so CSS resolution
+saves nothing there — `width` does). With `width=768` a screenshot drops to
+258–476 tokens — under a third of one `brave_read` call with 6,000 characters
+(roughly 1,500–2,000 tokens). The old device-resolution screenshot on Claude
+cost as much as a good nine such text reads.
 
-## Arbeitsregeln für Agenten
+## Working rules for agents
 
-Erfahrungen aus dem Einsatz; wer dieses MCP nutzt, arbeitet danach:
+Field-tested practices; anyone using this MCP works by them:
 
-- Erst die angebotenen Funktionen prüfen, dann über den Browser auf fehlende
-  Oberflächen zugreifen. Ein einzelner MCP deckt eine Anwendung selten vollständig ab.
-- Absenden ist nicht erledigt. Erst sichtbare Belege prüfen: der neue Beitrag im
-  Verlauf, die Bestätigung, die erzeugte Datei. „Angefordert", „ausgeführt" und
-  „gespeichert" sind unterschiedliche Zustände; Schreibaufträge bei unklarem Ausgang
-  nicht blind wiederholen, sondern den Zustand neu lesen.
-- Vor Beginn festlegen, wann die Arbeit fertig ist, und weitere Ausbauten als eigenen
-  Auftrag melden, statt eine Prüfung still zu erweitern.
+- Check the functions an MCP offers first, then reach missing surfaces through
+  the browser. A single MCP rarely covers a whole application.
+- Submitted is not done. Check visible evidence first: the new post in the
+  history, the confirmation, the produced file. "Requested", "executed" and
+  "saved" are different states; when the outcome is unclear, do not blindly
+  repeat a write — re-read the state.
+- Define what "done" means before starting, and report further extensions as
+  their own task instead of quietly widening a check.
 
-## Grenzen
+## Limits
 
-Downloads laufen im Browser selbst in den Download-Ordner des Profils; dieser Server bildet
-sie bisher nicht als Werkzeug ab und meldet weder Pfad noch Erfolg. Sollte das
-gebraucht werden, ist das ein eigener Ausbauauftrag.
+Downloads run inside the browser into the profile's download folder; this
+server does not expose them as a tool yet and reports neither path nor success.
+If that is needed, it is its own follow-up task.
 
-## Verbindung beenden
+## Stopping the shared connection
 
 ```sh
 node src/server.mjs --stop
 ```
 
-Dies trennt den gemeinsamen Zugang für alle Clients, lässt Brave und seine Tabs aber
-geöffnet. Das Beenden eines einzelnen MCP-Clients trennt die gemeinsame Verbindung nicht.
-Nach Änderungen am Servercode den gemeinsamen Prozess einmal mit `--stop` beenden;
-der nächste Client-Aufruf startet ihn mit dem neuen Code. Der Client vergleicht seine
-API-Version mit der des Prozesses; ein veralteter Prozess wird ausdrücklich gemeldet,
-statt neue Optionen still zu ignorieren.
+This disconnects the shared access for all clients but leaves Brave and its
+tabs open. Closing a single MCP client does not disconnect the shared
+connection. After changes to the server code, stop the shared process once
+with `--stop`; the next client call restarts it with the new code. The client
+compares its API version with the process's; an outdated process is reported
+explicitly instead of silently ignoring new options.
 
-Der lokale Unix-Socket liegt in einem Benutzerverzeichnis mit Modus 0700 und ist selbst
-nur für diesen Benutzer zugänglich (0600). Es gibt keinen offenen HTTP-Server für MCP.
-Unterstützt werden derzeit POSIX-Systeme; live geprüft wurde macOS mit Brave Nightly.
+The local Unix socket lives in a user directory with mode 0700 and is itself
+accessible only to that user (0600). There is no open HTTP server for MCP.
+POSIX systems are supported; tested live on macOS with Brave Nightly.
 
-## Prüfung
+## Verification
 
 ```sh
 pnpm test
@@ -201,17 +191,18 @@ node test/smoke.mjs
 node test/tokens.mjs
 ```
 
-Die Tokenmessung öffnet einen eigenen Testtab, vermisst die drei Screenshot-Varianten
-am eigenen Rechner und schließt ihn danach wieder.
+The token measurement opens its own test tab, measures the three screenshot
+variants on your own machine and closes it again.
 
-Der Live-Test öffnet einen eigenen lokalen Test-Tab. Er prüft den MCP-Handshake,
-Werkzeugkatalog, Texteingabe, echte Klicks, einen versteckten Datei-Upload, einen
-eingebetteten Frame und Screenshots. Zwei getrennte MCP-Clients müssen denselben
-Prozess und genau eine Browserverbindung melden. Bestehende Tabs werden nicht navigiert.
-Am Ende schließt der Test seinen Tab mit `brave_close`; sein Testserver endet mit dem Testprozess.
+The live test opens its own local test tab. It verifies the MCP handshake, the
+tool catalog, text input, real clicks, a hidden file upload, an embedded frame
+and screenshots. Two separate MCP clients must report the same process and
+exactly one browser connection. Existing tabs are never navigated. At the end
+the test closes its own tab with `brave_close`; its test server ends with the
+test process.
 
-Stand 18.11.2026: neun lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
-allen zehn Werkzeugen erfolgreich, einschließlich Wartezeit nach Klick/Navigation,
-Textblättern per `charOffset`, Blättern und Filtern der Bedienelemente, Schalterzustand,
-überdeckter Checkbox, Entfernen von Icon-Zeichen, Schließen des eigenen Tabs,
-auf Zielbreite verkleinerter Screenshots, Versionsabgleich und Neuverbindung nach Browserneustart.
+As of 2026-11-18: nine local checks passing, live test with two MCP clients
+and all ten tools successful, including wait after click/navigation, text
+paging via `charOffset`, control paging and filtering, switch state, covered
+checkboxes, icon character removal, closing your own tab, target-width
+screenshots, version handshake and reconnection after browser restart.
