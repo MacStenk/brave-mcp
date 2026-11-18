@@ -1,7 +1,7 @@
 # Brave Session MCP
 
 Eigenständiger lokaler MCP-Server für den bereits geöffneten Brave Nightly.
-Er verwendet Stevens offene Tabs und Anmeldungen direkt im Browser. Ein gemeinsamer
+Er verwendet die offenen Tabs und bestehenden Anmeldungen des Browserprofils. Ein gemeinsamer
 Hintergrundprozess hält die Debugging-Verbindung für alle lokalen MCP-Clients offen.
 Ein neuer Agent braucht dadurch nicht bei jeder Anfrage eine neue Brave-Freigabe.
 
@@ -41,7 +41,7 @@ Rechner vorhandenen absoluten Pfade. Auf anderen Rechnern beide Pfade anpassen.
 
 Die Client-Konfigurationen wurden als Beispiele angelegt; bestehende App-Einstellungen
 wurden nicht automatisch verändert. Es wurde kein Plugin und kein öffentlicher
-Verzeichniseintrag angelegt. Das Paket ist vorerst privat.
+Verzeichniseintrag angelegt. Lizenz: MIT, siehe LICENSE.
 
 ## Werkzeuge
 
@@ -132,7 +132,7 @@ Erfahrungen aus dem Einsatz; wer dieses MCP nutzt, arbeitet danach:
 
 ## Grenzen
 
-Downloads laufen im Browser selbst in Stevens Download-Ordner; dieser Server bildet
+Downloads laufen im Browser selbst in den Download-Ordner des Profils; dieser Server bildet
 sie bisher nicht als Werkzeug ab und meldet weder Pfad noch Erfolg. Sollte das
 gebraucht werden, ist das ein eigener Ausbauauftrag.
 
@@ -173,5 +173,4 @@ Der Test-Tab bleibt zur Sichtprüfung offen; sein Testserver endet mit dem Testp
 Stand 18.11.2026: sechs lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
 allen neun Werkzeugen erfolgreich, einschließlich Wartezeit nach Klick/Navigation,
 Textblättern per `charOffset`, auf Zielbreite verkleinerter Screenshots,
-Versionsabgleich und Neuverbindung nach Browserneustart. Keine Abhängigkeit vom
-Google-Flow-MCP oder von Stevens Befehls-Bibliothek.
+Versionsabgleich und Neuverbindung nach Browserneustart.

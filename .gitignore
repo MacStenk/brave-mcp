@@ -2,3 +2,5 @@ node_modules/
 .env
 *.log
 artifacts/
+.DS_Store
+.video_agent/

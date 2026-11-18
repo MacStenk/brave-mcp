@@ -46,7 +46,7 @@ export async function serveBridge() {
       }).catch(() => socket.destroy());
     });
   });
-  // Prozessende schließt nur die CDP-Verbindung, nicht Stevens Browser.
+  // Prozessende schließt nur die CDP-Verbindung, nicht den Browser des Nutzers.
   const stop = async () => { server.close(); await fs.unlink(socketPath).catch(() => {}); process.exit(0); };
   process.on('SIGTERM', () => void stop());
   process.on('SIGINT', () => void stop());

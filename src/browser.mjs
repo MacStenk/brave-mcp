@@ -31,7 +31,7 @@ export class Brave {
   pages = new Map(); frames = new Map(); refs = new Map(); connections = 0;
   async connect() {
     if (this.browser?.isConnected()) return this.browser;
-    // Nach Browserende neu verbinden, statt --stop zu verlangen; die Freigabe erteilt Steven in Brave.
+    // Nach Browserende neu verbinden, statt --stop zu verlangen; die Freigabe erteilt der Nutzer in Brave.
     this.browser = undefined;
     const portFile = await fs.readFile(path.join(profile(), 'DevToolsActivePort'), 'utf8').catch(() => {
       throw new Error('Brave-Freigabe nicht gefunden. brave://inspect/#remote-debugging in Brave öffnen und die Freigabe aktivieren.');

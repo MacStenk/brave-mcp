@@ -9,7 +9,7 @@ if (process.argv.includes('--bridge')) {
 } else if (process.argv.includes('--stop')) {
   console.log(JSON.stringify(await request('stop')));
 } else {
-  const server = new McpServer({ name: 'brave-session', version: '0.1.0' });
+  const server = new McpServer({ name: 'brave-session', version: '0.2.0' });
   const tabId = z.string().min(1).describe('Stabile Tab-ID aus brave_tabs.');
   const ref = z.string().min(1).describe('Elementreferenz aus brave_read für genau diesen Tab.');
   const wait = z.number().int().min(0).max(15000).optional().describe('Millisekunden, die nach der Aktion auf das Laden der Seite und eine Beruhigungsphase gewartet wird. Weglassen oder 0: sofort zurückkehren.');
