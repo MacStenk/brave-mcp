@@ -175,6 +175,12 @@ Der lokale Unix-Socket liegt in einem Benutzerverzeichnis mit Modus 0700 und ist
 nur für diesen Benutzer zugänglich (0600). Es gibt keinen offenen HTTP-Server für MCP.
 Unterstützt werden derzeit POSIX-Systeme; live geprüft wurde macOS mit Brave Nightly.
 
+## Releases
+
+Was sich in welcher Version geändert hat: [CHANGELOG.md](CHANGELOG.md) (Englisch).
+Was eine Versionsnummer verspricht, was als inkompatibel gilt und welche Versionen
+Korrekturen bekommen: [RELEASES.md](RELEASES.md) (Englisch).
+
 ## Prüfung
 
 ```sh

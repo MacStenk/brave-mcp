@@ -187,6 +187,12 @@ The local Unix socket lives in a user directory with mode 0700 and is itself
 accessible only to that user (0600). There is no open HTTP server for MCP.
 POSIX systems are supported; tested live on macOS with Brave Nightly.
 
+## Releases
+
+What changed in each version: [CHANGELOG.md](CHANGELOG.md). What a version number
+promises, what counts as breaking and which versions get fixes:
+[RELEASES.md](RELEASES.md).
+
 ## Verification
 
 ```sh
