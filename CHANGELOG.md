@@ -9,6 +9,8 @@ promises and which versions get fixes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-18
+
 ### Added
 
 - Published on npm as `brave-session-mcp`: `npx -y brave-session-mcp` replaces
@@ -74,5 +76,6 @@ a package registry.
 - Element references are bound to their tab and expire after ten minutes; page
   text is returned as untrusted data, and no tool runs page scripts.
 
-[Unreleased]: https://github.com/MacStenk/brave-mcp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/MacStenk/brave-mcp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/MacStenk/brave-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/MacStenk/brave-mcp/releases/tag/v0.2.0

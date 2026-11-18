@@ -1,6 +1,6 @@
 {
   "name": "brave-session-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "MCP server that gives local AI agents safe, token-efficient access to the Brave browser you are already logged into.",
   "license": "MIT",
   "author": "Steven Noack",
