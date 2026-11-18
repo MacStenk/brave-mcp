@@ -188,11 +188,14 @@ export class Brave {
     if (!frameId) return { page, frame: page.mainFrame() };
     const frame = this.frames.get(frameId);
     if (!frame || !page.frames().includes(frame)) throw new Error('Frame does not belong to this tab or was reloaded.');
+    // Eine erlaubte Seite kann eine gesperrte Domain einbetten; solche Frames bleiben unlesbar.
+    if (isBlocked(frame.url(), (await loadSettings()).blocked)) throw new Error('This frame shows a site blocked for agents by the user.');
     return { page, frame };
   }
   async read({ tabId, frameId, maxChars = 6000, charOffset = 0, controlOffset = 0, maxControls = 200, controlFilter }) {
     const { page, frame } = await this.frame(tabId, frameId);
-    const frames = page.frames().map(f => ({ frameId: this.id(this.frames, f, 'frame'), url: f.url(), main: f === page.mainFrame() }));
+    const { blocked } = await loadSettings();
+    const frames = page.frames().filter(f => !isBlocked(f.url(), blocked)).map(f => ({ frameId: this.id(this.frames, f, 'frame'), url: f.url(), main: f === page.mainFrame() }));
     const full = stripIcons(await frame.locator('body').innerText({ timeout: 5000 }));
     const text = full.slice(charOffset, charOffset + maxChars);
     const nextCharOffset = charOffset + text.length < full.length ? charOffset + text.length : null;
@@ -247,6 +250,7 @@ export class Brave {
     const item = this.refs.get(ref);
     if (!item || item.tabId !== tabId || Date.now() - item.created > 600000) throw new Error('Stale reference or reference from another tab; call brave_read again.');
     if (!item.frame.page().frames().includes(item.frame) || (!(await item.element.isVisible()) && !(upload && item.description.type === 'file'))) throw new Error('Element is no longer visible.');
+    if (isBlocked(item.frame.url(), (await loadSettings()).blocked)) throw new Error('This frame now shows a site blocked for agents by the user.');
     const current = await item.element.evaluate(describe);
     if (current.tag !== item.description.tag || current.label !== item.description.label) throw new Error('Element has changed; call brave_read again.');
     return item.element;
@@ -312,7 +316,11 @@ export class Brave {
       }
       await this.settle(page, args.wait);
       // Eine Weiterleitung auf eine gesperrte Seite nicht verraten.
-      if (isBlocked(page.url(), settings.blocked)) throw new Error('The page redirected to a site blocked for agents by the user.');
+      if (isBlocked(page.url(), settings.blocked)) {
+        // Selbst geöffnete Tabs wieder schließen, damit kein gesperrter Tab liegen bleibt.
+        if (method === 'open') { this.opened.delete(page); await page.close().catch(() => {}); }
+        throw new Error('The page redirected to a site blocked for agents by the user.');
+      }
       return { tabId: this.id(this.pages, page, 'tab'), url: page.url() };
     }
     if (method === 'close') {

@@ -9,6 +9,12 @@ promises and which versions get fixes.
 
 ## [Unreleased]
 
+### Security
+
+- Blocklist now also covers embedded frames: an allowed page that embeds a
+  blocked site no longer lists that frame, and it cannot be read or clicked.
+  A tab opened by an agent that redirects to a blocked site is closed again.
+
 ## [0.3.0] - 2026-11-18
 
 ### Added
