@@ -76,7 +76,7 @@ weeks. Security fixes ship as soon as they are ready.
 
 | Line | Status      | Fixes | Supported until |
 | ---- | ----------- | ----- | --------------- |
-| 0.2  | current     | all   | while current   |
+| 0.4  | current     | all   | while current   |
 | older | unsupported | none  | -               |
 
 Only the latest release line gets fixes. Issues on older versions are closed with

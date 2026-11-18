@@ -1,10 +1,14 @@
 import http from 'node:http';
-import { randomUUID } from 'node:crypto';
-import { loadSettings, updateSettings, normalizeSite, isBlocked, isControl, controlPort, settingsPath } from './settings.mjs';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { loadSettings, updateSettings, normalizeSite, isBlocked, isControl, controlPort, settingsPath, controlKey } from './settings.mjs';
 
-// Steuerseite für den Nutzer: Modus umschalten und Sperrliste pflegen, als Lesezeichen in Brave.
-// Nur auf 127.0.0.1; Änderungen nur per Formular dieser Seite (Host, Origin und Schlüssel geprüft),
+// Steuerseite für den Nutzer: Modus umschalten und Sperrliste pflegen.
+// Nur auf 127.0.0.1 und nur mit dem Schlüssel aus control-key neben settings.json (0600): Den kennt nur der Nutzer,
+// andere lokale Nutzer und Prozesse kommen nicht hinein. Die Adresse mit ?key= setzt ein HttpOnly-Cookie für diesen Start.
+// Änderungen zusätzlich nur per Formular dieser Seite (Host, Origin, Sec-Fetch-Site und Formularschlüssel geprüft),
 // damit andere Websites und DNS-Rebinding nichts umstellen können.
+
+const LOCKED = '<p>This page needs its key. Run <code>npx brave-session-mcp control</code> in a terminal and open the address it prints (bookmark that address).</p>';
 
 const escape = value => String(value).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const host = url => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return null; } };
@@ -72,6 +76,10 @@ ${blockedList}
 
 export function startControl(browser, { port = controlPort(), file = settingsPath() } = {}) {
   const token = randomUUID();
+  // Sitzung pro Start: Ein abgegriffenes Cookie verfällt mit dem Neustart und verrät den dauerhaften Schlüssel nicht.
+  const session = randomBytes(32).toString('hex');
+  const cookie = `brave_mcp_${port}`;
+  const same = (a, b) => typeof a === 'string' && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
   const hosts = [`127.0.0.1:${port}`, `localhost:${port}`];
   const server = http.createServer(async (req, res) => {
     const send = (status, body, headers = {}) => {
@@ -84,11 +92,19 @@ export function startControl(browser, { port = controlPort(), file = settingsPat
     };
     // Host prüfen gegen DNS-Rebinding: eine fremde Domain, die auf 127.0.0.1 zeigt, bekommt die Seite nicht.
     if (!hosts.includes(req.headers.host)) return send(421, 'Wrong host.');
-    const path = req.url.split('?')[0];
+    const url = new URL(req.url, 'http://127.0.0.1');
     try {
-      if (req.method === 'GET' && path === '/') return send(200, render(await loadSettings(file), browser.openUrls(), token));
-      if (req.method === 'POST' && path === '/') {
+      if (req.method === 'GET' && url.pathname === '/' && url.searchParams.has('key')) {
+        if (!same(url.searchParams.get('key'), await controlKey(file))) return send(403, LOCKED);
+        return send(303, '', { Location: '/', 'Set-Cookie': `${cookie}=${session}; Path=/; HttpOnly; SameSite=Strict` });
+      }
+      const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(part => part.trim().split('=')).filter(([name]) => name));
+      if (!same(cookies[cookie], session)) return send(403, LOCKED);
+      if (req.method === 'GET' && url.pathname === '/') return send(200, render(await loadSettings(file), browser.openUrls(), token));
+      if (req.method === 'POST' && url.pathname === '/') {
         if (!hosts.some(h => req.headers.origin === `http://${h}`)) return send(403, 'Forbidden.');
+        // Fetch-Metadaten: Formulare, die eine andere Seite auslöst (auch über ein Popup), gelten nicht.
+        if (req.headers['sec-fetch-site'] && req.headers['sec-fetch-site'] !== 'same-origin') return send(403, 'Forbidden.');
         let body = '';
         for await (const chunk of req) { body += chunk; if (body.length > 10000) return send(413, 'Too large.'); }
         const form = new URLSearchParams(body);

@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { request, serveBridge } from './bridge.mjs';
-import { loadSettings, updateSettings, normalizeSite, controlPort, settingsPath } from './settings.mjs';
+import { loadSettings, updateSettings, normalizeSite, controlPort, settingsPath, controlKey } from './settings.mjs';
 import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 
@@ -41,7 +41,8 @@ if (process.argv.includes('--bridge')) {
     console.log(settings.mode === 'agent' ? `Agents see only the Brave profile "${settings.profile}".` : 'Agents see all profiles (blocked sites excluded).');
   }
 } else if (command === 'control') {
-  console.log(`http://127.0.0.1:${controlPort()}/  (settings: ${settingsPath()})`);
+  // Adresse mit Schlüssel: nur wer control-key lesen kann (der Nutzer), kommt auf die Steuerseite.
+  console.log(`http://127.0.0.1:${controlPort()}/?key=${await controlKey()}  (settings: ${settingsPath()})`);
 } else {
   const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   const server = new McpServer({ name: 'brave-session', version });
@@ -55,7 +56,7 @@ if (process.argv.includes('--bridge')) {
         const result = await request(method, args);
         if (result?.image) return { content: [{ type: 'image', mimeType: result.mimeType || 'image/png', data: result.image }] };
         return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-      } catch (error) { return { isError: true, content: [{ type: 'text', text: error.message }] }; }
+      } catch (error) { return { isError: true, content: [{ type: 'text', text: String(error.message).split('\n')[0] }] }; }
     });
   }
   tool('brave_status', 'status', 'Checks the shared local Brave connection without starting a browser or reading tabs.', {}, true);

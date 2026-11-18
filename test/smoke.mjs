@@ -38,7 +38,7 @@ try {
   await call(b, 'brave_click', { tabId, ref: ref('Bestätigen') });
   assert.match((await call(a, 'brave_read', { tabId })).text, /Hallo MCP/);
   const upload = read.controls.find(control => control.type === 'file');
-  await call(a, 'brave_upload', { tabId, ref: upload.ref, files: [fileURLToPath(new URL('../package.json', import.meta.url))] }).then(() => assert.fail('Upload outside the upload folder was allowed'), error => assert.match(error.message, /only allowed from/));
+  await call(a, 'brave_upload', { tabId, ref: upload.ref, files: [fileURLToPath(new URL('../package.json', import.meta.url))] }).then(() => assert.fail('Upload outside the upload folder was allowed'), error => assert.match(error.message, /File not available for upload/));
   await call(a, 'brave_upload', { tabId, ref: upload.ref, files: [fileURLToPath(new URL('./browser.test.mjs', import.meta.url))] });
   assert.match((await call(a, 'brave_read', { tabId })).text, /browser.test.mjs/);
   const frameId = read.frames.find(frame => frame.url.endsWith('/frame')).frameId;

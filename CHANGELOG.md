@@ -9,6 +9,48 @@ promises and which versions get fixes.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-18
+
+### Security
+
+Findings and status of the review that led to this release:
+[docs/security-review-2026-11-18.md](docs/security-review-2026-11-18.md).
+
+- `brave_read` reads text, address and controls of one document in a single step and
+  discards the result if the tab or frame switched to a blocked page meanwhile.
+  Screenshots get the same check afterwards, and `brave_tabs` takes titles from the
+  browser instead of the page.
+- Only `http(s)` websites are visible to agents. `about:`, `blob:`, `data:`,
+  `brave://` and extension pages are hidden, and so is everything inside a blocked
+  frame.
+- **Breaking:** the control page needs a key that only you can read
+  (`~/.config/brave-mcp/control-key`). Open it with the address that
+  `npx brave-session-mcp control` prints and bookmark that address; without it the
+  page answers 403. Forms sent from other sites are refused.
+- `brave_screenshot` captures and scales the image in the browser engine instead of
+  running code in the page, so a page can no longer read or swap the screenshot.
+- Agent mode finds its profile and its opened tabs by a unique address instead of
+  taking the first new tab, so a tab you open at the same time is no longer mistaken
+  for it.
+- `brave_screenshot` is refused on a page that embeds a blocked site, and clicks there
+  never bypass the check of what is under the pointer.
+- `brave_status` reports whether the control page is running and why not.
+- A trailing dot in the address (`bank.example.`) no longer bypasses the blocklist or
+  the control page check.
+- A settings file with an unknown `mode`, a `blocked` value that is not a list, or an
+  entry that is not a domain now makes every tool fail instead of allowing everything.
+  Entries like `https://www.Bank.example/login` are normalized to `bank.example`.
+- Quick successive changes on the control page no longer lose a change, and writes
+  at the same time no longer fail or leave a half-written settings file.
+- `brave_upload` refuses folders; only single files from the upload folder are
+  accepted.
+- Error messages no longer reveal more than needed: one message for every refused
+  upload path (no real path, no hint whether the file exists), no blocked host names,
+  and no browser call logs with the addresses of intermediate pages.
+- `brave_navigate` and `brave_open` refuse Brave's debugging address, and such tabs
+  are hidden.
+- Updated zod to 4.6.7 (GHSA-mrhx-c7xc-m3w5).
+
 ## [0.3.1] - 2026-11-18
 
 ### Security
@@ -84,7 +126,8 @@ a package registry.
 - Element references are bound to their tab and expire after ten minutes; page
   text is returned as untrusted data, and no tool runs page scripts.
 
-[Unreleased]: https://github.com/MacStenk/brave-mcp/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/MacStenk/brave-mcp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/MacStenk/brave-mcp/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/MacStenk/brave-mcp/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/MacStenk/brave-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/MacStenk/brave-mcp/releases/tag/v0.2.0

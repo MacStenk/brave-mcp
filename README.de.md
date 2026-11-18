@@ -37,20 +37,22 @@ verbindet sich beim nächsten Aufruf selbst neu.
 Für ein anderes Brave-Profil `BRAVE_USER_DATA_DIR` auf dessen Benutzerverzeichnis setzen.
 Es werden weder Profile noch Cookies oder Schlüsseldateien kopiert.
 
-`brave_upload` nimmt nur Dateien aus einem Ordner, standardmäßig `~/Downloads`.
-Ein anderer Ordner lässt sich mit `BRAVE_MCP_UPLOAD_DIR` setzen. Pfade außerhalb,
-`../` und Symlinks, die hinausführen, werden abgewiesen; so kann eine Website einen
-Agenten nicht dazu bringen, SSH-Schlüssel hochzuladen. Der gemeinsame Prozess liest
-die Variable beim Start; nach einer Änderung `npx brave-session-mcp --stop`.
+`brave_upload` nimmt nur einzelne Dateien aus einem Ordner, standardmäßig `~/Downloads`.
+Ein anderer Ordner lässt sich mit `BRAVE_MCP_UPLOAD_DIR` setzen; ein eigener Ordner,
+den du bewusst befüllst, ist sicherer als Downloads (siehe [Grenzen](#grenzen)).
+Pfade außerhalb, `../`, Symlinks, die hinausführen, und ganze Ordner werden abgewiesen;
+so kann eine Website einen Agenten nicht dazu bringen, SSH-Schlüssel hochzuladen. Die
+Fehlermeldung verrät nicht, ob ein abgewiesener Pfad existiert. Der gemeinsame Prozess
+liest die Variable beim Start; nach einer Änderung `npx brave-session-mcp --stop`.
 
 ### Sensible Tabs vor Agenten schützen
 
-Ohne weitere Einstellung sehen Agenten alle Tabs deines Browsers, auch Mail und Bank. Zwei Schalter ändern das jederzeit, ohne Neustart:
+Ohne weitere Einstellung sehen Agenten alle Website-Tabs deines Browsers, auch Mail und Bank. Seiten, die keine normalen `http(s)`-Websites sind (`about:`, `blob:`, `data:`, `brave://` und Erweiterungsseiten), bleiben immer verborgen, weil die Sperrliste sie nicht erkennen kann. Zwei Schalter ändern jederzeit, ohne Neustart, was Agenten sehen:
 
-- **Sperrliste:** Gesperrte Seiten sind für Agenten unsichtbar, und Agenten können sie nicht öffnen. Du bleibst dabei in deinem normalen Profil mit allen Anmeldungen. Eine Domain gilt mit ihren Subdomains (`google.com` sperrt auch `mail.google.com`).
+- **Sperrliste:** Gesperrte Seiten sind für Agenten unsichtbar, und Agenten können sie nicht öffnen. Du bleibst dabei in deinem normalen Profil mit allen Anmeldungen. Eine Domain gilt mit ihren Subdomains (`google.com` sperrt auch `mail.google.com`). Frames innerhalb eines gesperrten Frames bleiben ebenfalls verborgen; auf einer Seite, die eine gesperrte Seite einbettet, verweigert `brave_screenshot` das Bild, und Klicks umgehen nie die Prüfung, was unter dem Mauszeiger liegt.
 - **Agent-Modus:** Agenten sehen **nur** die Tabs eines Brave-Profils, und `brave_open` öffnet dort. Einmal in Brave anlegen (Profil-Symbol → **Hinzufügen**, Name `Agent`, gut erkennbare Farbe) und dort nur bei Diensten anmelden, die Agenten nutzen dürfen. Tabs in einem anderen Profil öffnet brave-mcp über macOS `open`, daher vorerst nur auf macOS.
 
-**Steuerseite:** Solange brave-mcp läuft, <http://127.0.0.1:47821/> öffnen und als Lesezeichen speichern. Dort schaltest du den Modus um, siehst die in deinen Tabs offenen Seiten mit einem Knopf **Block** und pflegst die Sperrliste. Änderungen nimmt sie nur von sich selbst an (Host, Herkunft und ein Schlüssel pro Start werden geprüft), Agenten können sie nicht öffnen.
+**Steuerseite:** `npx brave-session-mcp control` ausführen und die ausgegebene Adresse öffnen (`http://127.0.0.1:47821/?key=…`); diese Adresse als Lesezeichen speichern. Der Schlüssel liegt in `~/.config/brave-mcp/control-key` (neben der Einstellungsdatei, nur für dich lesbar), daher können andere Benutzer und Programme auf deinem Rechner die Seite nicht bedienen; ohne Schlüssel antwortet sie mit 403. Dort schaltest du den Modus um, siehst die in deinen Tabs offenen Seiten mit einem Knopf **Block** und pflegst die Sperrliste. Änderungen nimmt sie nur aus ihren eigenen Formularen an (Host, Herkunft, Fetch-Metadaten und ein Formularschlüssel pro Start werden geprüft), Agenten können sie nicht öffnen. `brave_status` meldet, ob die Seite läuft, etwa wenn ein anderes Programm den Port schon belegt.
 
 **Terminal:**
 
@@ -61,7 +63,7 @@ npx brave-session-mcp block                    # Liste zeigen
 npx brave-session-mcp mode agent               # oder: all; ohne Angabe: anzeigen
 ```
 
-Die Einstellungen liegen in `~/.config/brave-mcp/settings.json` (verschieben mit `BRAVE_MCP_SETTINGS`) und werden bei jeder Agenten-Aktion neu gelesen. Agenten haben kein Werkzeug, um sie zu ändern. Ohne gespeicherten Modus startet `BRAVE_MCP_PROFILE=Agent` im Agent-Modus. `BRAVE_MCP_CONTROL_PORT` ändert den Port, `BRAVE_APP` nennt die zu öffnende Brave-App (Standard `Brave Browser Nightly`).
+Die Einstellungen liegen in `~/.config/brave-mcp/settings.json` (verschieben mit `BRAVE_MCP_SETTINGS`) und werden bei jeder Agenten-Aktion neu gelesen. Agenten haben kein Werkzeug, um sie zu ändern. Eine fehlerhafte Datei (kein gültiges JSON, ein unbekannter `mode`, ein Eintrag in `blocked`, der keine Domain ist) lässt alle Werkzeuge mit einem Fehler abbrechen, statt still alles zu erlauben. Ohne gespeicherten Modus startet `BRAVE_MCP_PROFILE=Agent` im Agent-Modus. `BRAVE_MCP_CONTROL_PORT` ändert den Port, `BRAVE_APP` nennt die zu öffnende Brave-App (Standard `Brave Browser Nightly`).
 
 ## Clients
 
@@ -182,6 +184,29 @@ Erfahrungen aus dem Einsatz; wer dieses MCP nutzt, arbeitet danach:
 Downloads laufen im Browser selbst in den Download-Ordner des Profils; dieser Server bildet
 sie bisher nicht als Werkzeug ab und meldet weder Pfad noch Erfolg. Sollte das
 gebraucht werden, ist das ein eigener Ausbauauftrag.
+
+Bekannte Sicherheitsgrenzen:
+
+- **Upload-Ordner:** Standard ist `~/Downloads`, wo auch Dateien von gesperrten Seiten
+  landen (etwa Kontoauszüge). Eine Website könnte einen Agenten bitten, eine solche
+  Datei unter einem erratenen Namen hochzuladen. `BRAVE_MCP_UPLOAD_DIR` auf einen
+  eigenen Ordner setzen, der nur Dateien enthält, die Agenten hochladen dürfen.
+- **Ein gemeinsamer Prozess:** Alle Agenten teilen sich einen Hintergrundprozess und
+  seine Warteschlange. Ein eingefrorener oder sehr schwerer Tab kann alle Agenten
+  aufhalten, bis er antwortet oder du `npx brave-session-mcp --stop` ausführst.
+- **Laufzeitordner:** Der Hintergrundprozess nutzt `/tmp/brave-session-mcp-<uid>`
+  (oder `BRAVE_MCP_RUNTIME_DIR`). Legt ein anderer Benutzer desselben Rechners diesen
+  Ordner zuerst an, lehnen die Sicherheitsprüfungen ihn ab, und alle Werkzeuge brechen
+  mit einem Fehler ab (sicherer Ausfall); dann `BRAVE_MCP_RUNTIME_DIR` auf einen eigenen
+  Ordner setzen.
+- **Dieselbe Einstellungsdatei:** Die Terminal-Befehle und der Hintergrundprozess lesen
+  `BRAVE_MCP_SETTINGS` jeweils aus ihrer eigenen Umgebung. Setzt dein MCP-Client die
+  Variable, denselben Wert auch in der Shell setzen, aus der du `block`, `mode` und
+  `control` aufrufst, sonst landen Änderungen in einer anderen Datei.
+- **Weiterleitungsschritte:** `brave_navigate` und `brave_open` prüfen die angegebene
+  Adresse und die, auf der der Tab endet. Eine Weiterleitungskette, die zwischendurch
+  über eine gesperrte Seite läuft, wird nicht gestoppt, und die gesperrte Seite erhält
+  diese Anfrage mit deinen Cookies.
 
 ## Verbindung beenden
 

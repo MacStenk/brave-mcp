@@ -12,3 +12,5 @@ Which versions receive security fixes is listed under
 
 Scope note: this server drives the browser you are already logged into. Treat any
 way to make it act outside the documented tools as a reportable issue.
+
+Past reviews: [18 November 2026](docs/security-review-2026-11-18.md).

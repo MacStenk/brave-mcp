@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Brave, localEndpoint, API_VERSION, pageControls, stripIcons, uploadPaths, profileDirectory } from '../src/browser.mjs';
+import { Brave, localEndpoint, API_VERSION, pageControls, stripIcons, uploadPaths, profileDirectory, frameVisible, embedsForbidden } from '../src/browser.mjs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -73,20 +73,38 @@ test('Tabs des Nutzers lassen sich nicht schließen', async () => {
   await assert.rejects(brave.call('close', { tabId: 'tab-nutzer' }), /Only tabs opened with brave_open/);
   assert.equal(closed, false);
 });
-test('Uploads nur aus dem Upload-Ordner, auch nicht über Symlinks oder ../', async () => {
+test('Uploads nur einzelne Dateien aus dem Upload-Ordner, auch nicht über Symlinks, ../ oder Ordner', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'brave-mcp-upload-'));
   try {
     const root = path.join(tmp, 'erlaubt');
     await fs.mkdir(root);
+    await fs.mkdir(path.join(root, 'unterordner'));
     await fs.writeFile(path.join(root, 'bild.png'), 'x');
     await fs.writeFile(path.join(tmp, 'geheim.txt'), 'x');
     await fs.symlink(path.join(tmp, 'geheim.txt'), path.join(root, 'link.txt'));
     const [ok] = await uploadPaths(['bild.png'], root);
     assert.equal(ok, await fs.realpath(path.join(root, 'bild.png')));
-    for (const file of [path.join(tmp, 'geheim.txt'), '../geheim.txt', 'link.txt']) {
-      await assert.rejects(uploadPaths([file], root), /only allowed from/, `rejected: ${file}`);
+    for (const file of [path.join(tmp, 'geheim.txt'), '../geheim.txt', 'link.txt', 'unterordner', 'fehlt.txt', '/etc/passwd']) {
+      // Eine Meldung für alles, ohne echten Pfad: verrät nicht, ob eine Datei existiert.
+      const error = await uploadPaths([file], root).then(() => null, e => e);
+      assert.match(error?.message ?? '', /^File not available for upload\./, `rejected: ${file}`);
+      assert.ok(!error.message.includes(tmp) && !error.message.includes(file), 'no path in the message');
     }
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+test('Frames: nur http(s) sichtbar, auch nichts unterhalb eines gesperrten Frames', () => {
+  const frame = (url, parent = null) => ({ url: () => url, parentFrame: () => parent });
+  const main = frame('https://wiki.example/');
+  const bank = frame('https://bank.example/', main);
+  const insideBank = frame('https://other.example/', bank);
+  const blank = frame('about:blank', main);
+  const devtools = frame('http://127.0.0.1:9222/json/list', main);
+  assert.ok(frameVisible(main, ['bank.example'], 9222));
+  assert.ok(frameVisible(frame('https://other.example/', main), ['bank.example'], 9222));
+  for (const hidden of [bank, insideBank, blank, devtools]) assert.ok(!frameVisible(hidden, ['bank.example'], 9222), hidden.url());
+  assert.ok(embedsForbidden({ frames: () => [main, bank, insideBank] }, ['bank.example'], 9222));
+  assert.ok(embedsForbidden({ frames: () => [main, devtools] }, [], 9222));
+  assert.ok(!embedsForbidden({ frames: () => [main, blank] }, ['bank.example'], 9222), 'about:blank allein sperrt Screenshots nicht');
 });
 test('Agenten-Profil wird über seinen Anzeigenamen gefunden, fehlendes Profil erklärt den Weg', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'brave-mcp-profile-'));

@@ -51,20 +51,22 @@ shared process reconnects on the next call. For a different Brave profile, set
 `BRAVE_USER_DATA_DIR` to its user data directory. No profiles, cookies or key
 files are ever copied.
 
-`brave_upload` only accepts files from one folder, `~/Downloads` by default. Set
-`BRAVE_MCP_UPLOAD_DIR` to use another one. Paths outside it, `../` tricks and
-symlinks pointing out of it are refused, so a page cannot talk an agent into
-uploading your SSH keys. The shared background process reads the variable when it
-starts; after changing it, run `npx brave-session-mcp --stop`.
+`brave_upload` only accepts single files from one folder, `~/Downloads` by default.
+Set `BRAVE_MCP_UPLOAD_DIR` to use another one; a dedicated folder that you fill on
+purpose is safer than Downloads (see [Limits](#limits)). Paths outside it, `../`
+tricks, symlinks pointing out of it and whole folders are refused, so a page cannot
+talk an agent into uploading your SSH keys. The error does not say whether a refused
+path exists. The shared background process reads the variable when it starts; after
+changing it, run `npx brave-session-mcp --stop`.
 
 ### Keeping agents away from sensitive tabs
 
-By default agents see every tab of your browser, including mail and banking. Two switches change that at any time, without a restart:
+By default agents see every website tab of your browser, including mail and banking. Pages that are not plain `http(s)` websites (`about:`, `blob:`, `data:`, `brave://` and extension pages) are always hidden, because the blocklist cannot recognise them. Two switches change what agents see at any time, without a restart:
 
-- **Blocklist:** blocked sites are invisible to agents and cannot be opened by them, while you stay in your normal profile with all logins. A domain includes its subdomains (`google.com` also blocks `mail.google.com`).
+- **Blocklist:** blocked sites are invisible to agents and cannot be opened by them, while you stay in your normal profile with all logins. A domain includes its subdomains (`google.com` also blocks `mail.google.com`). Frames inside a blocked frame are hidden too; on a page that embeds a blocked site, `brave_screenshot` is refused and clicks never bypass the check of what is under the pointer.
 - **Agent mode:** agents see **only** the tabs of one Brave profile, and `brave_open` opens tabs there. Create it once in Brave (profile icon → **Add**, name it `Agent`, pick a colour you will recognise) and sign in there only to services agents may use. Opening tabs in another profile goes through macOS `open`, so agent mode is macOS-only for now.
 
-**Control page:** while brave-mcp runs, open <http://127.0.0.1:47821/> and bookmark it. It switches the mode, lists the sites open in your tabs with a **Block** button, and manages the blocklist. It only accepts changes from itself (host, origin and a per-start key are checked), and agents cannot open it.
+**Control page:** run `npx brave-session-mcp control` and open the address it prints (`http://127.0.0.1:47821/?key=…`); bookmark that address. The key lives in `~/.config/brave-mcp/control-key` (next to the settings file, readable only by you), so other users and programs on your computer cannot use the page; without it the page answers 403. The page switches the mode, lists the sites open in your tabs with a **Block** button, and manages the blocklist. It only accepts changes from its own forms (host, origin, fetch metadata and a per-start form key are checked), and agents cannot open it. `brave_status` reports whether the page is running, for example when another program already uses the port.
 
 **Terminal:**
 
@@ -75,7 +77,7 @@ npx brave-session-mcp block                    # show the list
 npx brave-session-mcp mode agent               # or: all; without argument: show
 ```
 
-Settings live in `~/.config/brave-mcp/settings.json` (`BRAVE_MCP_SETTINGS` to move it) and are read on every agent action. Agents have no tool to change them. Without a saved mode, `BRAVE_MCP_PROFILE=Agent` starts in agent mode. `BRAVE_MCP_CONTROL_PORT` changes the port, `BRAVE_APP` names the Brave app to open (default `Brave Browser Nightly`).
+Settings live in `~/.config/brave-mcp/settings.json` (`BRAVE_MCP_SETTINGS` to move it) and are read on every agent action. Agents have no tool to change them. A broken file (invalid JSON, an unknown `mode`, a `blocked` entry that is not a domain) makes every tool fail with an error instead of silently allowing everything. Without a saved mode, `BRAVE_MCP_PROFILE=Agent` starts in agent mode. `BRAVE_MCP_CONTROL_PORT` changes the port, `BRAVE_APP` names the Brave app to open (default `Brave Browser Nightly`).
 
 ## Clients
 
@@ -193,6 +195,28 @@ Field-tested practices; anyone using this MCP works by them:
 Downloads run inside the browser into the profile's download folder; this
 server does not expose them as a tool yet and reports neither path nor success.
 If that is needed, it is its own follow-up task.
+
+Known security limits:
+
+- **Upload folder:** the default upload folder is `~/Downloads`, where files from
+  blocked sites (bank statements, for example) also land. A page could ask an agent
+  to upload such a file by a guessed name. Set `BRAVE_MCP_UPLOAD_DIR` to a dedicated
+  folder that only contains files you want agents to upload.
+- **One shared process:** all agents share one background process and its queue. A
+  frozen or very heavy tab can stall every agent until it responds or you run
+  `npx brave-session-mcp --stop`.
+- **Runtime folder:** the background process uses `/tmp/brave-session-mcp-<uid>`
+  (or `BRAVE_MCP_RUNTIME_DIR`). If another user on the same computer creates that
+  folder first, the safety checks refuse it and every tool fails with an error
+  (it fails closed); set `BRAVE_MCP_RUNTIME_DIR` to a folder of your own.
+- **Same settings file:** the terminal commands and the background process each read
+  `BRAVE_MCP_SETTINGS` from their own environment. If your MCP client sets it, set
+  the same value in the shell you run `block`, `mode` and `control` from, or your
+  changes go to a different file.
+- **Redirect hops:** `brave_navigate` and `brave_open` check the address you give and
+  the address the tab ends on. A redirect chain that passes through a blocked site
+  in between is not stopped, and the blocked site sees that request with your
+  cookies.
 
 ## Stopping the shared connection
 

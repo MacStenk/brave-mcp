@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Brave, API_VERSION } from './browser.mjs';
 import { startControl } from './control.mjs';
+import { controlPort } from './settings.mjs';
 
 // Ein älterer Hintergrundprozess darf neue Optionen nicht still ignorieren.
 export function versionError(clientVersion) {
@@ -43,7 +44,10 @@ export async function serveBridge() {
           const outdated = versionError(apiVersion);
           if (outdated) { socket.end(JSON.stringify({ error: outdated }) + '\n'); return; }
           socket.end(JSON.stringify({ result: await browser.call(method, args) }) + '\n');
-        } catch (error) { socket.end(JSON.stringify({ error: error.message }) + '\n'); }
+        } catch (error) {
+          // Nur die erste Zeile: Playwright hängt ein Aufrufprotokoll an, das Adressen aller Zwischenseiten enthalten kann.
+          socket.end(JSON.stringify({ error: String(error.message).split('\n')[0] }) + '\n');
+        }
       }).catch(() => socket.destroy());
     });
   });
@@ -53,8 +57,11 @@ export async function serveBridge() {
   process.on('SIGINT', () => void stop());
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(socketPath, resolve); });
   await fs.chmod(socketPath, 0o600);
-  // Ohne Steuerseite (Port belegt) laufen die Werkzeuge weiter; Einstellungen gehen dann per Befehl.
-  await startControl(browser).catch(error => console.error(`Control page unavailable: ${error.message}`));
+  // Ohne Steuerseite (Port belegt) laufen die Werkzeuge weiter; brave_status meldet den Grund, Einstellungen gehen dann per Befehl.
+  const port = controlPort();
+  await startControl(browser, { port }).then(
+    () => { browser.control = { running: true, url: `http://127.0.0.1:${port}/` }; },
+    error => { browser.control = { running: false, error: `Control page unavailable: ${error.message}` }; console.error(browser.control.error); });
 }
 
 function rpc(method, args) {
