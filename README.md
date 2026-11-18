@@ -12,7 +12,7 @@ Testbrowser und keine Erweiterung nötig.
 
 ```sh
 pnpm install --frozen-lockfile
-node /Users/stevennoack/dev/brave-mcp/src/server.mjs
+node src/server.mjs
 ```
 
 Der Server spricht MCP über stdin/stdout. Daher im MCP-Client direkt `node` starten,
@@ -28,8 +28,10 @@ Es werden weder Profile noch Cookies oder Schlüsseldateien kopiert.
 
 ## Clients
 
-Die Beispiele in `config/mcp.json` und `config/codex.toml` verwenden die auf diesem
-Rechner vorhandenen absoluten Pfade. Auf anderen Rechnern beide Pfade anpassen.
+Die Beispiele in `config/` enthalten Platzhalter-Pfade; beim Übernehmen den absoluten
+Pfad des eigenen Klons einsetzen. Startet ein Client `node` nicht, weil er keine
+PATH-Umgebung erbt (bei grafischen Apps üblich), den absoluten Node-Pfad aus
+`which node` als command eintragen.
 
 - Claude Desktop und andere lokale Clients mit `mcpServers`: Eintrag aus `config/mcp.json` übernehmen.
 - Codex und andere TOML-Clients: `config/codex.toml` als Beispiel verwenden.
@@ -139,7 +141,7 @@ gebraucht werden, ist das ein eigener Ausbauauftrag.
 ## Verbindung beenden
 
 ```sh
-node /Users/stevennoack/dev/brave-mcp/src/server.mjs --stop
+node src/server.mjs --stop
 ```
 
 Dies trennt den gemeinsamen Zugang für alle Clients, lässt Brave und seine Tabs aber
