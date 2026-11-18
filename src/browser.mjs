@@ -21,12 +21,15 @@ const describe = element => {
   const role = element.getAttribute('role');
   const checkable = element.matches('input[type=checkbox],input[type=radio]') || ['switch', 'checkbox', 'radio'].includes(role);
   const byId = (element.getAttribute('aria-labelledby') || '').split(/\s+/).map(id => id && element.ownerDocument.getElementById(id)?.innerText).filter(Boolean).join(' ');
-  const label = (element.getAttribute('aria-label') || byId || element.labels?.[0]?.innerText || element.innerText || element.getAttribute('placeholder') || element.title || '').trim().slice(0, 180);
+  // Icon-Zeichen aus Webfonts (Unicode Private Use Area) tragen keine Bedeutung und kosten nur Tokens.
+  // Gleiche Regel wie stripIcons; hier eingebettet, weil describe im Browser läuft und keine Modulvariablen sieht.
+  const clean = text => text.replace(/[\uE000-\uF8FF\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}]/gu, '').trim();
+  const label = clean(element.getAttribute('aria-label') || byId || element.labels?.[0]?.innerText || element.innerText || element.getAttribute('placeholder') || element.title || '').slice(0, 180);
   // Schalter und unbeschriftete Elemente: Text der nächsten umgebenden Zeile als Kontext,
   // weil Beschriftungen wie aria-label="Switch" (Cloudflare) nichts über die Einstellung sagen.
   let context;
   if (!label || checkable) for (let node = element.parentElement, depth = 0; node && depth < 6; node = node.parentElement, depth++) {
-    const text = node.innerText?.trim();
+    const text = clean(node.innerText || '');
     if (text) { context = text.replace(/\s+/g, ' ').slice(0, 180); break; }
   }
   return {
@@ -51,10 +54,19 @@ export function pageControls(items, { controlOffset = 0, maxControls = 200, cont
 }
 
 // 1: alles vor dem Versionsabgleich (18.11.2026). 3: Bedienelemente blätter- und filterbar, Schalterzustand.
-export const API_VERSION = 3;
+// 4: Icon-Zeichen (Private Use Area) aus Text und Beschriftungen entfernt, brave_close für selbst geöffnete Tabs.
+export const API_VERSION = 4;
+
+// Entfernt Icon-Zeichen aus Webfonts; Zeilen, die nur aus Icons bestanden, verschwinden mit, echte Leerzeilen bleiben.
+export function stripIcons(text) {
+  return text.split('\n').flatMap(line => {
+    const kept = line.replace(/[\uE000-\uF8FF\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}]/gu, '');
+    return kept.trim() || !line.trim() ? [kept] : [];
+  }).join('\n');
+}
 
 export class Brave {
-  pages = new Map(); frames = new Map(); refs = new Map(); connections = 0;
+  pages = new Map(); frames = new Map(); refs = new Map(); opened = new Set(); connections = 0;
   async connect() {
     if (this.browser?.isConnected()) return this.browser;
     // Nach Browserende neu verbinden, statt --stop zu verlangen; die Freigabe erteilt der Nutzer in Brave.
@@ -95,7 +107,7 @@ export class Brave {
   async read({ tabId, frameId, maxChars = 6000, charOffset = 0, controlOffset = 0, maxControls = 200, controlFilter }) {
     const { page, frame } = await this.frame(tabId, frameId);
     const frames = page.frames().map(f => ({ frameId: this.id(this.frames, f, 'frame'), url: f.url(), main: f === page.mainFrame() }));
-    const full = await frame.locator('body').innerText({ timeout: 5000 });
+    const full = stripIcons(await frame.locator('body').innerText({ timeout: 5000 }));
     const text = full.slice(charOffset, charOffset + maxChars);
     const nextCharOffset = charOffset + text.length < full.length ? charOffset + text.length : null;
     const found = [];
@@ -194,9 +206,19 @@ export class Brave {
       const url = new URL(args.url);
       if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Nur HTTP(S)-Adressen ohne eingebettete Zugangsdaten.');
       const page = method === 'open' ? await (await this.connect()).contexts()[0].newPage() : await this.page(args.tabId);
+      if (method === 'open') this.opened.add(page);
       await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 15000 });
       await this.settle(page, args.wait);
       return { tabId: this.id(this.pages, page, 'tab'), url: page.url() };
+    }
+    if (method === 'close') {
+      // Nur Tabs schließen, die ein Agent selbst mit brave_open geöffnet hat; Tabs des Nutzers bleiben unberührt.
+      const page = await this.page(args.tabId);
+      if (!this.opened.has(page)) throw new Error('Nur mit brave_open geöffnete Tabs können geschlossen werden.');
+      await page.close();
+      this.opened.delete(page);
+      for (const [id, item] of this.pages) if (item === page) this.pages.delete(id);
+      return { closed: true };
     }
     throw new Error('Unbekannte Browserfunktion.');
   }

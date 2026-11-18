@@ -32,5 +32,6 @@ if (process.argv.includes('--bridge')) {
   tool('brave_screenshot', 'screenshot', 'Zeigt einen Screenshot des angegebenen Tabs in CSS-Pixelauflösung statt Geräteauflösung (auf Retina-Displays deutlich weniger Bild-Tokens). Bild-Tokens richten sich nach Pixelabmessungen, nicht nach Dateigröße.', { tabId, width: z.number().int().min(320).max(1280).optional().describe('Zielbreite in Pixeln (320–1280); verkleinert das Bild als JPEG weiter. 320–512 erreicht das Token-Niveau von OpenAIs detail:low. Weglassen: volle CSS-Breite als PNG.') }, true);
   tool('brave_navigate', 'navigate', 'Navigiert einen ausdrücklich ausgewählten Tab zu einer HTTP(S)-Adresse. wait wartet danach zusätzlich ab.', { tabId, url: z.string().url(), wait });
   tool('brave_open', 'open', 'Öffnet eine ausdrücklich angegebene HTTP(S)-Adresse in einem neuen Tab. wait wartet danach zusätzlich ab.', { url: z.string().url(), wait });
+  tool('brave_close', 'close', 'Schließt einen Tab, den ein Agent selbst mit brave_open geöffnet hat. Tabs des Nutzers lassen sich nicht schließen.', { tabId });
   await server.connect(new StdioServerTransport());
 }

@@ -8,7 +8,7 @@ import fs from 'node:fs/promises';
 const fixture = http.createServer((request, response) => {
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
   // Viele Navigationslinks vor einem unbeschrifteten Schalter und einer von einem Icon überdeckten Checkbox (wie Cloudflare und Bing).
-  if (request.url === '/switch') return response.end(`<!doctype html><title>Schalter</title><nav>${Array.from({ length: 250 }, (_, i) => `<a href="#m${i}">Menü ${i}</a>`).join(' ')}</nav><div><span>"Bot Fight"-Modus</span> <span><button role="switch" aria-label="Switch" aria-checked="true" onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked') === 'true' ? 'false' : 'true')" style="width:40px;height:20px"></button><input type="checkbox" checked aria-hidden="true" tabindex="-1" style="position:fixed;left:0;top:0;width:1px;height:1px;margin:0"></span></div><label style="position:relative;display:inline-block;padding-left:24px"><input type="checkbox" style="position:absolute;left:0;top:0"><i style="position:absolute;left:0;top:0;width:20px;height:20px;background:#38f"></i>Alle Subdomains</label>`);
+  if (request.url === '/switch') return response.end(`<!doctype html><title>Schalter</title><nav>${Array.from({ length: 250 }, (_, i) => `<a href="#m${i}">Menü ${i}</a>`).join(' ')}</nav><div><span>&#xE80F;</span><span>"Bot Fight"-Modus</span> <span><button role="switch" aria-label="Switch" aria-checked="true" onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked') === 'true' ? 'false' : 'true')" style="width:40px;height:20px"></button><input type="checkbox" checked aria-hidden="true" tabindex="-1" style="position:fixed;left:0;top:0;width:1px;height:1px;margin:0"></span></div><label style="position:relative;display:inline-block;padding-left:24px"><input type="checkbox" style="position:absolute;left:0;top:0"><i style="position:absolute;left:0;top:0;width:20px;height:20px;background:#38f"></i>Alle Subdomains</label>`);
   response.end(request.url === '/frame' ? '<button onclick="this.textContent=\'Frame bestätigt\'">Frame-Test</button>' : request.url === '/next' ? '<!doctype html><title>Brave MCP – nächste Seite</title><h1>Nächste Seite erreicht</h1><p><a href="/">Zurück</a></p>' : `<!doctype html><title>Brave MCP – lokaler Funktionstest</title><h1>Lokaler MCP-Test</h1><label>Name <input id="name"></label><button onclick="document.querySelector('#result').textContent='Hallo '+document.querySelector('#name').value">Bestätigen</button><p id="result"></p><label>Datei <input type="file" hidden onchange="document.querySelector('#file').textContent=this.files[0].name"></label><p id="file"></p><iframe src="/frame"></iframe><a href="/next">Weiter</a><p id="long"></p><script>document.querySelector('#long').textContent='x'.repeat(15000)+'ENDE-MARKER'</script>`);
 });
 await new Promise(resolve => fixture.listen(0, '127.0.0.1', resolve));
@@ -25,7 +25,7 @@ async function call(client, name, args = {}) {
 }
 try {
   const a = await client('Test-Agent-A'), b = await client('Test-Agent-B');
-  assert.equal((await a.listTools()).tools.length, 9);
+  assert.equal((await a.listTools()).tools.length, 10);
   const { tabId } = await call(a, 'brave_open', { url: `http://127.0.0.1:${fixture.address().port}/` });
   const read = await call(a, 'brave_read', { tabId });
   const ref = label => read.controls.find(control => control.label === label).ref;
@@ -70,9 +70,12 @@ try {
   assert.equal(sa.daemonPid, sb.daemonPid); assert.equal(sa.browserConnections, 1); assert.equal(sb.browserConnections, 1);
   assert.ok(Number.isInteger(sa.apiVersion) && sa.apiVersion >= 2 && sa.apiVersion === sb.apiVersion, 'API-Version im Status beider Clients');
   await call(a, 'brave_navigate', { tabId, url: 'about:blank' }).then(() => assert.fail('Interne Navigation wurde erlaubt'), () => {});
-  console.log(JSON.stringify({ ok: true, tools: 9, clients: 2, browserConnections: 1, checks: ['initialize', 'tools/list', 'fill', 'trusted click', 'hidden upload', 'iframe', 'charOffset paging', 'wait after click navigation', 'control paging', 'control filter', 'switch state', 'covered checkbox', 'screenshot', 'scaled screenshot', 'version handshake', 'client sharing', 'URL validation'] }));
-  // Testseite leer zurücklassen; fremde Tabs bleiben unverändert.
-  await call(a, 'brave_navigate', { tabId, url: `http://127.0.0.1:${fixture.address().port}/done` });
+  const crowdedText = (await call(a, 'brave_read', { tabId, maxChars: 12000 })).text;
+  assert.ok(!/[\uE000-\uF8FF]/.test(crowdedText), 'Icon-Zeichen sind aus dem Text entfernt');
+  // Den eigenen Testtab schließen; fremde Tabs bleiben unverändert.
+  assert.deepEqual(await call(a, 'brave_close', { tabId }), { closed: true });
+  assert.ok(!(await call(a, 'brave_tabs')).some(t => t.tabId === tabId), 'Testtab ist geschlossen');
+  console.log(JSON.stringify({ ok: true, tools: 10, clients: 2, browserConnections: 1, checks: ['initialize', 'tools/list', 'fill', 'trusted click', 'hidden upload', 'iframe', 'charOffset paging', 'wait after click navigation', 'control paging', 'control filter', 'switch state', 'covered checkbox', 'screenshot', 'scaled screenshot', 'version handshake', 'client sharing', 'URL validation', 'icon stripping', 'close own tab'] }));
 } finally {
   await Promise.allSettled(clients.map(client => client.close()));
   fixture.close();

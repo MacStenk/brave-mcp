@@ -85,6 +85,7 @@ Verzeichniseintrag angelegt. Lizenz: MIT, siehe LICENSE.
 | `brave_screenshot` | Screenshot des Tabs in CSS-Auflösung, optional auf Zielbreite verkleinert |
 | `brave_navigate` | Einen gewählten Tab zu HTTP(S) navigieren, optional mit Wartezeit |
 | `brave_open` | Eine Adresse in einem neuen Tab öffnen, optional mit Wartezeit |
+| `brave_close` | Einen selbst mit `brave_open` geöffneten Tab schließen; Tabs des Nutzers bleiben unberührt |
 
 Zuerst `brave_tabs`, danach `brave_read` mit einer konkreten Tab-ID aufrufen.
 `brave_read` nennt `charsTotal` und `nextCharOffset`; mit `charOffset` blättern
@@ -113,7 +114,8 @@ Client zu überlassen:
 
 - `brave_read` liefert höchstens 12.000 Zeichen pro Aufruf (Standard 6.000),
   höchstens 200 Bedienelemente pro Aufruf (mit `controlsTotal` und `nextControlOffset`
-  blätterbar), Labels auf 180 Zeichen gestutzt. Mit `charOffset`
+  blätterbar), Labels auf 180 Zeichen gestutzt, Icon-Zeichen aus Webfonts (Unicode
+  Private Use Area) entfernt. Mit `charOffset`
   und `nextCharOffset` blättern Agenten gezielt weiter, statt eine lange Seite
   mehrfach komplett zu lesen.
 - `brave_read` liefert sichtbaren Text statt HTML-Quelltext: Mark-up, Attribute
@@ -204,7 +206,7 @@ Der Live-Test öffnet einen eigenen lokalen Test-Tab. Er prüft den MCP-Handshak
 Werkzeugkatalog, Texteingabe, echte Klicks, einen versteckten Datei-Upload, einen
 eingebetteten Frame und Screenshots. Zwei getrennte MCP-Clients müssen denselben
 Prozess und genau eine Browserverbindung melden. Bestehende Tabs werden nicht navigiert.
-Der Test-Tab bleibt zur Sichtprüfung offen; sein Testserver endet mit dem Testprozess.
+Am Ende schließt der Test seinen Tab mit `brave_close`; sein Testserver endet mit dem Testprozess.
 
 Stand 18.11.2026: sechs lokale Prüfungen bestanden, Live-Test mit zwei MCP-Clients und
 allen neun Werkzeugen erfolgreich, einschließlich Wartezeit nach Klick/Navigation,

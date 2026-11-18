@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Brave, localEndpoint, API_VERSION, pageControls } from '../src/browser.mjs';
+import { Brave, localEndpoint, API_VERSION, pageControls, stripIcons } from '../src/browser.mjs';
 import { versionError } from '../src/bridge.mjs';
 
 test('Verbindet ausschließlich den lokalen Debugging-Endpunkt', () => {
@@ -59,4 +59,14 @@ test('Bedienelemente hinter vielen Navigationslinks bleiben über Filter und Bl�
   const filtered = pageControls(items, { controlFilter: 'bot fight' });
   assert.deepEqual(filtered.page.map(item => item.role), ['switch'], 'Filter durchsucht auch den Kontext unbeschrifteter Schalter');
   assert.equal(filtered.controlsTotal, 1);
+});
+test('Icon-Zeichen aus Webfonts verschwinden samt ihrer leeren Zeilen', () => {
+  assert.equal(stripIcons('\uE774\ncodeback.de/\n\uE70D\n\uE80F\nHome\nKI \u{F0001}fragen'), 'codeback.de/\nHome\nKI fragen');
+});
+test('Tabs des Nutzers lassen sich nicht schließen', async () => {
+  const brave = new Brave();
+  let closed = false;
+  brave.page = async () => ({ close: async () => { closed = true; } });
+  await assert.rejects(brave.call('close', { tabId: 'tab-nutzer' }), /Nur mit brave_open/);
+  assert.equal(closed, false);
 });
