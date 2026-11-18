@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
 
 export function localEndpoint(portFile) {
   const [port, route, ...rest] = portFile.trim().split(/\r?\n/);
@@ -56,7 +57,8 @@ export function pageControls(items, { controlOffset = 0, maxControls = 200, cont
 // 1: alles vor dem Versionsabgleich (18.11.2026). 3: Bedienelemente blätter- und filterbar, Schalterzustand.
 // 4: Icon-Zeichen (Private Use Area) aus Text und Beschriftungen entfernt, brave_close für selbst geöffnete Tabs.
 // 5: Uploads nur aus dem Upload-Ordner (BRAVE_MCP_UPLOAD_DIR, Standard ~/Downloads).
-export const API_VERSION = 5;
+// 6: BRAVE_MCP_PROFILE beschränkt alle Werkzeuge auf ein Brave-Profil, brave_open öffnet dort.
+export const API_VERSION = 6;
 
 // Entfernt Icon-Zeichen aus Webfonts; Zeilen, die nur aus Icons bestanden, verschwinden mit, echte Leerzeilen bleiben.
 export function stripIcons(text) {
@@ -82,12 +84,28 @@ export async function uploadPaths(files, root = uploadRoot()) {
   }));
 }
 
+// Agenten-Profil: Mit BRAVE_MCP_PROFILE sehen alle Werkzeuge nur die Tabs dieses Brave-Profils,
+// und brave_open öffnet dort. Das Profil legt der Nutzer selbst in Brave an; hier wird es nur gelesen.
+export async function profileDirectory(name, userDataDir = profile()) {
+  const state = JSON.parse(await fs.readFile(path.join(userDataDir, 'Local State'), 'utf8').catch(() => '{}'));
+  const entry = Object.entries(state.profile?.info_cache ?? {}).find(([, info]) => info.name === name);
+  if (!entry) throw new Error(`Brave profile "${name}" not found (BRAVE_MCP_PROFILE). Create it in Brave: profile icon → Add, name it "${name}", then try again.`);
+  return entry[0];
+}
+function launchInProfile(directory, url) {
+  // Über das Betriebssystem öffnen: Die Debugging-Schnittstelle kann keine Tabs in einem anderen Profil anlegen.
+  if (process.platform !== 'darwin') throw new Error('BRAVE_MCP_PROFILE currently works on macOS only.');
+  const app = process.env.BRAVE_APP || 'Brave Browser Nightly';
+  return new Promise((resolve, reject) => execFile('open', ['-na', app, '--args', `--profile-directory=${directory}`, url], error => error ? reject(new Error(`Could not open ${app}: ${error.message}`)) : resolve()));
+}
+
 export class Brave {
   pages = new Map(); frames = new Map(); refs = new Map(); opened = new Set(); connections = 0;
+  contextOf = new WeakMap();
   async connect() {
     if (this.browser?.isConnected()) return this.browser;
     // Nach Browserende neu verbinden, statt --stop zu verlangen; die Freigabe erteilt der Nutzer in Brave.
-    this.browser = undefined;
+    this.browser = undefined; this.cdp = undefined; this.scope = undefined;
     const portFile = await fs.readFile(path.join(profile(), 'DevToolsActivePort'), 'utf8').catch(() => {
       throw new Error('Brave remote debugging not found. Open brave://inspect/#remote-debugging in Brave and enable it.');
     });
@@ -102,9 +120,49 @@ export class Brave {
     const id = `${prefix}-${randomUUID().slice(0, 12)}`;
     map.set(id, object); return id;
   }
+  async targets() {
+    this.cdp ??= await (await this.connect()).newBrowserCDPSession();
+    return (await this.cdp.send('Target.getTargets')).targetInfos.filter(t => t.type === 'page');
+  }
+  // Ziel-Info eines Tabs; null, wenn der Tab inzwischen geschlossen wurde.
+  async pageTarget(page) {
+    if (!this.contextOf.has(page)) {
+      try {
+        const session = await page.context().newCDPSession(page);
+        const { targetInfo } = await session.send('Target.getTargetInfo');
+        await session.detach().catch(() => {});
+        this.contextOf.set(page, targetInfo);
+      } catch { return null; }
+    }
+    return this.contextOf.get(page);
+  }
+  // Öffnet url im Agenten-Profil und liefert die Ziel-Info des neuen Tabs (vorher/nachher-Vergleich der Tabs).
+  async openInProfile(directory, url) {
+    const before = new Set((await this.targets()).map(t => t.targetId));
+    await launchInProfile(directory, url);
+    for (const until = Date.now() + 15000; Date.now() < until; await new Promise(r => setTimeout(r, 250))) {
+      const created = (await this.targets()).find(t => !before.has(t.targetId) && (!this.scope?.contextId || t.browserContextId === this.scope.contextId));
+      if (created) return created;
+    }
+    throw new Error('Brave did not open a tab in the agent profile within 15 seconds.');
+  }
+  async profileScope() {
+    const name = process.env.BRAVE_MCP_PROFILE;
+    if (!name) return null;
+    if (!this.scope) {
+      const directory = await profileDirectory(name);
+      // Kennung des Profils einmal über einen leeren Tab ermitteln und ihn danach wieder schließen.
+      const marker = await this.openInProfile(directory, 'about:blank');
+      await this.cdp.send('Target.closeTarget', { targetId: marker.targetId }).catch(() => {});
+      this.scope = { name, directory, contextId: marker.browserContextId };
+    }
+    return this.scope;
+  }
   async tabs() {
     const browser = await this.connect();
-    const pages = browser.contexts().flatMap(context => context.pages());
+    const scope = await this.profileScope();
+    let pages = browser.contexts().flatMap(context => context.pages());
+    if (scope) pages = (await Promise.all(pages.map(async page => (await this.pageTarget(page))?.browserContextId === scope.contextId ? page : null))).filter(Boolean);
     for (const [id, page] of this.pages) if (!pages.includes(page)) this.pages.delete(id);
     return Promise.all(pages.map(async page => ({ tabId: this.id(this.pages, page, 'tab'), title: await page.title(), url: page.url() })));
   }
@@ -222,7 +280,22 @@ export class Brave {
     if (method === 'navigate' || method === 'open') {
       const url = new URL(args.url);
       if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Only HTTP(S) URLs without embedded credentials.');
-      const page = method === 'open' ? await (await this.connect()).contexts()[0].newPage() : await this.page(args.tabId);
+      let page;
+      const scope = method === 'open' ? await this.profileScope() : null;
+      if (scope) {
+        const target = await this.openInProfile(scope.directory, url.href);
+        for (const until = Date.now() + 10000; !page && Date.now() < until; await new Promise(r => setTimeout(r, 250))) {
+          for (const candidate of (await this.connect()).contexts().flatMap(context => context.pages())) {
+            if ((await this.pageTarget(candidate))?.targetId === target.targetId) { page = candidate; break; }
+          }
+        }
+        if (!page) throw new Error('Opened a tab in the agent profile but could not attach to it.');
+        this.opened.add(page);
+        await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+        await this.settle(page, args.wait);
+        return { tabId: this.id(this.pages, page, 'tab'), url: page.url() };
+      }
+      page = method === 'open' ? await (await this.connect()).contexts()[0].newPage() : await this.page(args.tabId);
       if (method === 'open') this.opened.add(page);
       await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 15000 });
       await this.settle(page, args.wait);

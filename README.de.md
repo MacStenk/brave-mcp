@@ -43,6 +43,16 @@ Ein anderer Ordner lässt sich mit `BRAVE_MCP_UPLOAD_DIR` setzen. Pfade außerha
 Agenten nicht dazu bringen, SSH-Schlüssel hochzuladen. Der gemeinsame Prozess liest
 die Variable beim Start; nach einer Änderung `node src/server.mjs --stop`.
 
+### Empfohlen: ein eigenes Agenten-Profil (macOS)
+
+Ohne weitere Einstellung sehen Agenten alle Tabs deines Browsers, auch Mail und Bank. Damit sie davon getrennt bleiben, bekommen sie ein eigenes Brave-Profil:
+
+1. In Brave auf das Profil-Symbol → **Hinzufügen**, das Profil `Agent` nennen und eine gut erkennbare Farbe wählen.
+2. In diesem Profil nur bei den Diensten anmelden, die Agenten nutzen dürfen.
+3. In der MCP-Client-Konfiguration `BRAVE_MCP_PROFILE=Agent` setzen und einmal `node src/server.mjs --stop` ausführen.
+
+Danach öffnet `brave_open` Tabs im Agent-Profil, und alle Werkzeuge sehen **nur** dessen Tabs; Tabs anderer Profile bleiben für Agenten unsichtbar, obwohl alles im selben Brave läuft. brave-mcp liest die Profilliste nur und legt keine Profile an. Tabs in einem anderen Profil öffnet es über macOS `open`, daher vorerst nur auf macOS. `BRAVE_APP` nennt die zu öffnende Brave-App (Standard `Brave Browser Nightly`).
+
 ## Clients
 
 Die Beispiele in `config/` enthalten Platzhalter-Pfade; beim Übernehmen den absoluten

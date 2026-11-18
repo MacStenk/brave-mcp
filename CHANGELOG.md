@@ -9,6 +9,13 @@ promises and which versions get fixes.
 
 ## [Unreleased]
 
+### Added
+
+- `BRAVE_MCP_PROFILE` limits every tool to one Brave profile, chosen by the name
+  you gave it in Brave, and `brave_open` opens tabs there. Agents then cannot see
+  mail, banking or anything else in your other profiles. macOS only for now;
+  `BRAVE_APP` names the Brave app to open (default `Brave Browser Nightly`).
+
 ### Security
 
 - **Breaking:** `brave_upload` only accepts files from one folder (`~/Downloads`

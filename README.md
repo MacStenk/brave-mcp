@@ -18,7 +18,7 @@ A local MCP server that gives your AI agents safe, token-efficient access to the
 
 Attaching an agent to your logged-in browser is no longer unique: [@playwright/mcp](https://github.com/microsoft/playwright-mcp) can connect to existing Chrome or Edge tabs through its browser extension (`--extension`), and [Chrome DevTools MCP](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session) attaches to a running Chrome with `--autoConnect` (Chrome 144+). Use those if you live in Chrome. This server is the Brave-first option and makes different trade-offs:
 
-- **Brave, your real profile** — works with Brave Nightly (and regular Brave via `BRAVE_USER_DATA_DIR`) where you are already logged in; no extension to install, no profile copied.
+- **Brave, your real profile** — works with Brave Nightly where you are already logged in; no extension to install, no profile copied. Regular Brave via `BRAVE_USER_DATA_DIR` should work but is untested.
 - **One shared connection for all agents** — a single background process serves every local MCP client over one CDP connection, so a second agent does not trigger another permission prompt.
 - **Token-efficient by design** — capped and paged text (`charOffset`), paged and filterable controls (`controlFilter`), waited actions (`wait`), icon characters stripped, CSS-scaled screenshots; measured numbers in the [Token usage](#token-usage) section below.
 - **Small attack surface** — ten narrow tools and no page-script execution; uploads only from one folder; agents can close only tabs they opened; page content is treated as untrusted data.
@@ -32,7 +32,7 @@ pnpm install --frozen-lockfile
 node src/server.mjs
 ```
 
-Requires Node ≥ 22, pnpm and Brave Nightly (remote debugging enabled once, see below). Install means `git clone` — this is not published to a package registry. For regular Brave instead of Nightly, set `BRAVE_USER_DATA_DIR` to its profile directory (see below).
+Requires Node ≥ 22, pnpm and Brave Nightly (remote debugging enabled once, see below). Install means `git clone` — this is not published to a package registry. Regular Brave instead of Nightly is untested: set `BRAVE_USER_DATA_DIR` to its profile directory and `BRAVE_APP` to its app name (see below).
 
 *Unofficial community project — Brave is a trademark of Brave Software, Inc.; this tool is not affiliated with or endorsed by them.*
 
@@ -57,6 +57,16 @@ files are ever copied.
 symlinks pointing out of it are refused, so a page cannot talk an agent into
 uploading your SSH keys. The shared background process reads the variable when it
 starts; after changing it, run `node src/server.mjs --stop`.
+
+### Recommended: a separate agent profile (macOS)
+
+By default agents see every tab of your browser, including mail and banking. To keep them away from those, give them their own Brave profile:
+
+1. In Brave, click the profile icon → **Add**, name the profile `Agent` and pick a colour you will recognise.
+2. In that profile, sign in only to the services agents may use.
+3. Set `BRAVE_MCP_PROFILE=Agent` in your MCP client config and run `node src/server.mjs --stop` once.
+
+From then on `brave_open` opens tabs in the Agent profile, and every tool sees **only** that profile's tabs; tabs in your other profiles stay invisible to agents, although everything runs in the same Brave. brave-mcp only reads the profile list and never creates or changes profiles. Opening tabs in another profile goes through macOS `open`, so this option is macOS-only for now. `BRAVE_APP` names the Brave app to open (default `Brave Browser Nightly`).
 
 ## Clients
 

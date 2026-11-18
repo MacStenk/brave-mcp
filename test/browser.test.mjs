@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Brave, localEndpoint, API_VERSION, pageControls, stripIcons, uploadPaths } from '../src/browser.mjs';
+import { Brave, localEndpoint, API_VERSION, pageControls, stripIcons, uploadPaths, profileDirectory } from '../src/browser.mjs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -86,5 +86,13 @@ test('Uploads nur aus dem Upload-Ordner, auch nicht über Symlinks oder ../', as
     for (const file of [path.join(tmp, 'geheim.txt'), '../geheim.txt', 'link.txt']) {
       await assert.rejects(uploadPaths([file], root), /only allowed from/, `rejected: ${file}`);
     }
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+test('Agenten-Profil wird über seinen Anzeigenamen gefunden, fehlendes Profil erklärt den Weg', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'brave-mcp-profile-'));
+  try {
+    await fs.writeFile(path.join(tmp, 'Local State'), JSON.stringify({ profile: { info_cache: { Default: { name: 'Persönliches' }, 'Profile 3': { name: 'Agent' } } } }));
+    assert.equal(await profileDirectory('Agent', tmp), 'Profile 3');
+    await assert.rejects(profileDirectory('Fehlt', tmp), /profile icon → Add/);
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
 });
