@@ -53,3 +53,19 @@ limits), upload realpath checks, atomic settings writes, and argument-list calls
 `open` and `osascript`.
 
 Found something else? See [SECURITY.md](../SECURITY.md).
+
+## External scan
+
+Same day, after the fixes: [HOL Guard plugin-scanner](https://github.com/hashgraph-online/hol-guard)
+3.59.0, run locally without an account. The first run scored 92/100 with one low
+finding (no Dependabot configuration); after adding `.github/dependabot.yml` it scored
+100/100 with no findings. The scanner checks repository hygiene and code patterns
+(secrets, `eval`, shell injection, MCP command and transport settings, lockfiles); the
+logic findings above come from the code review. Its Cisco MCP scan was skipped because
+the repository has no `.mcp.json`.
+
+Reproduce from a clone:
+
+```sh
+uvx --from plugin-scanner plugin-scanner scan .
+```
