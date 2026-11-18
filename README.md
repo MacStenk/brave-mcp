@@ -4,11 +4,15 @@ English · [Deutsch](README.de.md)
 
 A local MCP server that gives your AI agents safe, token-efficient access to the Brave browser you're already logged into.
 
+[![Release](https://img.shields.io/github/v/release/MacStenk/brave-mcp)](https://github.com/MacStenk/brave-mcp/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A5%2022-339933.svg)](package.json)
+
 **Status:** early, actively maintained by one person · tested on macOS with Brave Nightly; Linux plausible, untested · License: [MIT](LICENSE)
 
 ## What is this?
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io) is the open standard AI applications use to call external tools. This server exposes your already-running Brave Nightly — its open tabs and its logged-in sessions. Agents read pages, click, fill forms, upload files and take screenshots inside the real browser profile, not a disposable automation profile. One shared background process holds the debugging connection open for every local MCP client, so a new agent never triggers a new Brave permission prompt.
+
+![Architecture: local MCP clients connect over stdio to one shared daemon, which holds a single CDP connection to your running Brave with its profile, logins and tabs](docs/architecture.png)
 
 ## Why this over the alternatives?
 
