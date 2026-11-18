@@ -86,11 +86,22 @@ Client zu überlassen:
   nach Pixelabmessungen, nicht nach Dateigröße; JPEG-Kompression spart also keine
   Tokens, kleinere Abmessungen schon.
 
-Zur Einordnung nach Anbieterdokumentation: ein auf 768 Pixel Breite verkleinerter
-Screenshot kostet je nach Modell grob 100–500 Tokens, ein Textread von 6.000 Zeichen
-etwa 1.500–2.000, ein voll aufgelöster Retina-Screenshot in Geräteauflösung
-1.500–7.000. Kleine Bilder sind damit billiger als Textreads, unskalierte
-Retina-Screenshots deutlich teurer.
+Eigene Messung vom 18.11.2026 (`node test/tokens.mjs`, dieses Retina-Display,
+Fenster 2302×1364 CSS-Pixel, Retina-Faktor 2; Tokenwerte sind Näherungen nach
+Anbieterformeln):
+
+| Screenshot-Variante | Pixel | Claude klassisch | Claude 28-px-Patches | OpenAI high detail | Gemini |
+| --- | --- | --- | --- | --- | --- |
+| Geräteauflösung (alter Standard) | 4604×2728 | 16.747 | 16.170 | 2.125 | 6.192 |
+| CSS-Auflösung (aktueller Standard) | 2302×1364 | 4.187 | 4.067 | 2.125 | 1.548 |
+| CSS + `width=768` | 768×455 | 466 | 476 | 425 | 258 |
+
+Ergebnis: Der Standard-Screenshot kostet durch die CSS-Auflösung rund ein Viertel
+des alten Werts (OpenAI skaliert ohnehin vorher auf 2048 Pixel herunter, dort bringt
+die CSS-Auflösung keine Ersparnis, `width` aber sehr wohl). Mit `width=768` fällt
+ein Screenshot auf 258–476 Tokens — unter einem Drittel eines `brave_read`-Aufrufs
+mit 6.000 Zeichen (rund 1.500–2.000 Tokens). Der alte Screenshot in Geräteauflösung
+auf Claude kostete dagegen so viel wie gut neun solcher Textreads.
 
 ## Verbindung beenden
 
@@ -111,7 +122,11 @@ Unterstützt werden derzeit POSIX-Systeme; live geprüft wurde macOS mit Brave N
 ```sh
 pnpm test
 node test/smoke.mjs
+node test/tokens.mjs
 ```
+
+Die Tokenmessung öffnet einen eigenen Testtab, vermisst die drei Screenshot-Varianten
+am eigenen Rechner und schließt ihn danach wieder.
 
 Der Live-Test öffnet einen eigenen lokalen Test-Tab. Er prüft den MCP-Handshake,
 Werkzeugkatalog, Texteingabe, echte Klicks, einen versteckten Datei-Upload, einen
