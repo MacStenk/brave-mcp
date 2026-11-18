@@ -2,8 +2,8 @@
   "mcp": {
     "servers": {
       "brave-session": {
-        "command": "node",
-        "args": ["/absoluter/pfad/zum/klon/brave-mcp/src/server.mjs"]
+        "command": "npx",
+        "args": ["-y", "brave-session-mcp"]
       }
     }
   }
