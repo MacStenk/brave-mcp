@@ -165,6 +165,14 @@ Downloads laufen im Browser selbst in den Download-Ordner des Profils; dieser Se
 sie bisher nicht als Werkzeug ab und meldet weder Pfad noch Erfolg. Sollte das
 gebraucht werden, ist das ein eigener Ausbauauftrag.
 
+Checkboxen und Radiobuttons, die ein Framework mit einem eigenen Icon überdeckt
+(z.B. Fluent UI in den Bing Webmaster Tools), lassen sich mit `brave_click` nicht
+umschalten: Das Icon im `<label>` fängt den Klick ab, der Aufruf läuft nach 8 Sekunden
+in einen Timeout, `brave_fill` lehnt Checkboxen ab. Beobachtet am 18.11.2026 beim
+Häkchen „Crawl all subdomains“ im Site-Scan-Dialog. Ausbauauftrag: bei verdeckten
+Eingabefeldern auf das zugehörige `<label>` klicken (oder ein eigenes `brave_check`
+mit Sollzustand) und den neuen Zustand in der Antwort melden.
+
 ## Verbindung beenden
 
 ```sh
