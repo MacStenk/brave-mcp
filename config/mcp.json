@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "brave-session": {
+      "command": "/usr/local/bin/node",
+      "args": ["/Users/stevennoack/dev/brave-mcp/src/server.mjs"]
+    }
+  }
+}

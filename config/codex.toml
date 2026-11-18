@@ -1,0 +1,3 @@
+[mcp_servers.brave_session]
+command = "/usr/local/bin/node"
+args = ["/Users/stevennoack/dev/brave-mcp/src/server.mjs"]
