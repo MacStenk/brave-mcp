@@ -78,6 +78,12 @@ Client zu überlassen:
   höchstens 200 Bedienelemente, Labels auf 180 Zeichen gestutzt. Mit `charOffset`
   und `nextCharOffset` blättern Agenten gezielt weiter, statt eine lange Seite
   mehrfach komplett zu lesen.
+- `brave_read` liefert sichtbaren Text statt HTML-Quelltext: Mark-up, Attribute
+  und Skriptblöcke sind selbst ein Vielfaches des sichtbaren Texts und bleiben
+  draußen.
+- Aktionen senden nur eine kompakte Elementreferenz statt einer kompletten
+  Elementbeschreibung; `brave_tabs` und `brave_status` sind schlanke
+  Metadaten-Aufrufe ohne Seiteninhalt.
 - `wait` ersetzt Polling-Schleifen nach Klicks: eine wartende Aktion statt
   wiederholter voller Lesevorgänge.
 - `brave_screenshot` nimmt in CSS-Pixelauflösung auf statt in Geräteauflösung;
