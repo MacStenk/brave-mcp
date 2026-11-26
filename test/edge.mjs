@@ -12,7 +12,8 @@ const html = (res, body) => { res.setHeader('Content-Type', 'text/html; charset=
 // Zweiter Server unter "localhost": andere Site als 127.0.0.1, Brave legt das iframe in einen eigenen Prozess.
 const foreign = await listen((req, res) => html(res, '<!doctype html><button onclick="this.textContent=\'Fremd bestätigt\'">Fremd-Test</button>'));
 const main = await listen((req, res) => {
-  if (req.url === '/popup') return html(res, '<!doctype html><title>Popup</title><h1>Popup erreicht</h1>');
+  // Ein per Skript geöffnetes Fenster darf sich selbst schließen; so bleibt nach dem Test kein Popup liegen.
+  if (req.url === '/popup') return html(res, '<!doctype html><title>Popup</title><h1>Popup erreicht</h1><button onclick="window.close()">Popup schließen</button>');
   html(res, `<!doctype html><title>Randfälle</title><h1>Randfälle</h1>
 <iframe src="http://localhost:${foreign.address().port}/" style="width:300px;height:80px"></iframe>
 <button onclick="window.open('/popup','_blank')">Popup öffnen</button>`);
@@ -54,6 +55,10 @@ try {
   // Das Popup hat der Agent nicht mit brave_open geöffnet: Schließen bleibt (wie bisher) verweigert.
   await call('brave_close', { tabId: popup.tabId }).then(() => assert.fail('Popup ließ sich schließen'), error => assert.match(error.message, /Only tabs opened with brave_open/));
   timings.popupCloseDenied = 'ok';
+  const popupRead = await call('brave_read', { tabId: popup.tabId });
+  await call('brave_click', { tabId: popup.tabId, ref: popupRead.controls.find(c => c.label === 'Popup schließen').ref, wait: 500 });
+  assert.ok(!JSON.parse((await client.callTool({ name: 'brave_tabs', arguments: {} })).content[0].text).some(t => t.url === `${base}/popup`), 'Popup hat sich selbst geschlossen');
+  timings.popupCleanedUp = 'ok';
 
   // 3. Echte schwere Seite
   const gh = await call('brave_open', { url: 'https://github.com/MacStenk/brave-mcp', wait: 2500 }); opened.push(gh.tabId);
