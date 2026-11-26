@@ -233,6 +233,10 @@ explicitly instead of silently ignoring new options.
 
 The local Unix socket lives in a user directory with mode 0700 and is itself
 accessible only to that user (0600). There is no open HTTP server for MCP.
+Inside the background process, a CDP gate between Playwright and Brave listens on
+`127.0.0.1` on a random port and path and accepts exactly one connection. It keeps
+Playwright from attaching to every open tab: the server attaches only to the tab an
+agent works with, so listing tabs never wakes or touches your other tabs.
 POSIX systems are supported; tested live on macOS with Brave Nightly.
 
 ## Releases
@@ -246,6 +250,7 @@ promises, what counts as breaking and which versions get fixes:
 ```sh
 pnpm test
 node test/smoke.mjs
+node test/edge.mjs
 node test/tokens.mjs
 ```
 

@@ -223,6 +223,10 @@ statt neue Optionen still zu ignorieren.
 
 Der lokale Unix-Socket liegt in einem Benutzerverzeichnis mit Modus 0700 und ist selbst
 nur für diesen Benutzer zugänglich (0600). Es gibt keinen offenen HTTP-Server für MCP.
+Im Hintergrundprozess sitzt zwischen Playwright und Brave ein CDP-Torwächter. Er lauscht
+auf `127.0.0.1` an einem Zufallsport mit Zufallspfad und nimmt genau eine Verbindung an.
+Er verhindert, dass Playwright sich an alle offenen Tabs hängt: Angedockt wird nur an den
+Tab, mit dem ein Agent arbeitet. Das Auflisten der Tabs weckt oder berührt keine anderen Tabs.
 Unterstützt werden derzeit POSIX-Systeme; live geprüft wurde macOS mit Brave Nightly.
 
 ## Releases
@@ -236,6 +240,7 @@ Korrekturen bekommen: [RELEASES.md](RELEASES.md) (Englisch).
 ```sh
 pnpm test
 node test/smoke.mjs
+node test/edge.mjs
 node test/tokens.mjs
 ```
 

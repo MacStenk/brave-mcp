@@ -23,6 +23,8 @@ promises and which versions get fixes.
 - The gate listens on `127.0.0.1` on a random port with a random path and accepts
   exactly one connection (Playwright in the same process). Agents cannot open its address.
 - API version 9: older background processes are reported as outdated.
+- New live test `test/edge.mjs`: iframe of a foreign site (own process), popup
+  opened from an agent tab, and a real page (GitHub repo: read, filter, click, screenshot).
 
 ## [0.4.0] - 2026-11-18
 
