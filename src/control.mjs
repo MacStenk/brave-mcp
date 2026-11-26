@@ -100,7 +100,7 @@ export function startControl(browser, { port = controlPort(), file = settingsPat
       }
       const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(part => part.trim().split('=')).filter(([name]) => name));
       if (!same(cookies[cookie], session)) return send(403, LOCKED);
-      if (req.method === 'GET' && url.pathname === '/') return send(200, render(await loadSettings(file), browser.openUrls(), token));
+      if (req.method === 'GET' && url.pathname === '/') return send(200, render(await loadSettings(file), await browser.openUrls(), token));
       if (req.method === 'POST' && url.pathname === '/') {
         if (!hosts.some(h => req.headers.origin === `http://${h}`)) return send(403, 'Forbidden.');
         // Fetch-Metadaten: Formulare, die eine andere Seite auslöst (auch über ein Popup), gelten nicht.

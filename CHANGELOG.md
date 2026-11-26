@@ -9,6 +9,21 @@ promises and which versions get fixes.
 
 ## [Unreleased]
 
+### Changed
+
+- New CDP gate (`src/gate.mjs`) between Playwright and Brave. Until now
+  `connectOverCDP` attached to every open tab of every profile when connecting.
+  That made connecting slow with many tabs, woke throttled background tabs
+  (for example YouTube) and technically tied the process to private tabs that
+  agent mode only hides. `brave_tabs` now only lists tabs; the server attaches
+  to a tab only when an agent works with it, in agent mode only to tabs of the
+  agent profile.
+- Measured on 2026-11-27 with 43 open tabs: 0 attached tabs after `brave_tabs`
+  (previously all 43), `brave_open` 0.6 s instead of about 6 s, `brave_read` 22 ms.
+- The gate listens on `127.0.0.1` on a random port with a random path and accepts
+  exactly one connection (Playwright in the same process). Agents cannot open its address.
+- API version 9: older background processes are reported as outdated.
+
 ## [0.4.0] - 2026-11-18
 
 ### Security

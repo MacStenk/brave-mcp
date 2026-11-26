@@ -5,6 +5,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { loadSettings, agentVisible, isForbidden } from './settings.mjs';
+import { Gate } from './gate.mjs';
 
 export function localEndpoint(portFile) {
   const [port, route, ...rest] = portFile.trim().split(/\r?\n/);
@@ -93,7 +94,8 @@ export function pageControls(items, { controlOffset = 0, maxControls = 200, cont
 // 6: BRAVE_MCP_PROFILE beschränkt alle Werkzeuge auf ein Brave-Profil, brave_open öffnet dort.
 // 7: Sperrliste und umschaltbarer Agent-Modus (Steuerseite, settings.json); gesperrte Seiten sind unsichtbar.
 // 8: Nur http(s)-Seiten sichtbar, Lesen ohne Warten mit Nachprüfung, Screenshots ohne Seitenskript, Steuerseite mit Schlüssel.
-export const API_VERSION = 8;
+// 9: Torwächter (gate.mjs): angedockt wird nur an Tabs, die ein Agent benutzt; Auflisten weckt keine Tabs.
+export const API_VERSION = 9;
 
 // Entfernt Icon-Zeichen aus Webfonts; Zeilen, die nur aus Icons bestanden, verschwinden mit, echte Leerzeilen bleiben.
 export function stripIcons(text) {
@@ -143,25 +145,35 @@ function launchInProfile(directory, url) {
 
 export class Brave {
   pages = new Map(); frames = new Map(); refs = new Map(); opened = new Set(); connections = 0;
-  contextOf = new WeakMap();
+  contextOf = new WeakMap(); byTarget = new Map();
   async connect() {
     if (this.browser?.isConnected()) return this.browser;
     // Nach Browserende neu verbinden, statt --stop zu verlangen; die Freigabe erteilt der Nutzer in Brave.
-    this.browser = undefined; this.cdp = undefined; this.scope = undefined;
+    this.browser = undefined; this.cdp = undefined; this.scope = undefined; this.byTarget = new Map();
+    this.gate?.close(); this.gate = undefined;
     const portFile = await fs.readFile(path.join(profile(), 'DevToolsActivePort'), 'utf8').catch(() => {
       throw new Error('Brave remote debugging not found. Open brave://inspect/#remote-debugging in Brave and enable it.');
     });
     const endpoint = localEndpoint(portFile);
     // Port der Debugging-Schnittstelle merken: Agenten dürfen sie weder öffnen noch sehen.
     this.devtoolsPort = +new URL(endpoint).port;
-    this.browser = await chromium.connectOverCDP(endpoint, { timeout: 15000 }).catch(() => {
-      throw new Error('Brave not reachable. Check remote debugging in Brave or restart the browser, then try again.');
-    });
+    // Über den Torwächter verbinden: Playwright dockt so nur an Tabs an, die ein Agent wirklich benutzt (siehe gate.mjs).
+    const unreachable = () => new Error('Brave not reachable. Check remote debugging in Brave or restart the browser, then try again.');
+    const gate = new Gate(endpoint);
+    const gateUrl = await gate.start().catch(() => { gate.close(); throw unreachable(); });
+    this.browser = await chromium.connectOverCDP(gateUrl, { timeout: 15000 }).catch(() => { gate.close(); throw unreachable(); });
+    this.gate = gate;
+    this.browser.on('disconnected', () => gate.close());
     this.connections++;
     return this.browser;
   }
   visible(url, settings) {
-    return agentVisible(url, settings.blocked, this.devtoolsPort);
+    return agentVisible(url, settings.blocked, this.devtoolsPort) && !this.isGate(url);
+  }
+  // Der lokale Torwächter ist für Agenten so tabu wie die Debugging-Schnittstelle.
+  isGate(url) {
+    if (!this.gate?.port) return false;
+    try { const u = new URL(url); return ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname) && +u.port === this.gate.port; } catch { return false; }
   }
   id(map, object, prefix) {
     for (const [id, item] of map) if (item === object) return id;
@@ -221,29 +233,43 @@ export class Brave {
     return this.scope;
   }
   async tabs() {
-    const browser = await this.connect();
+    await this.connect();
     const settings = await loadSettings();
     const scope = await this.profileScope(settings);
-    // Titel und Adressen vom Browser statt aus dem Tab: Ein hängender Tab hält so nichts auf.
-    const infos = new Map((await this.targets()).map(t => [t.targetId, t]));
-    const found = (await Promise.all(browser.contexts().flatMap(context => context.pages()).map(async page => {
-      const info = infos.get((await this.pageTarget(page))?.targetId);
-      if (!info || (scope && info.browserContextId !== scope.contextId)) return null;
-      // Gesperrte Seiten, Steuerseite und alles außer http(s) bleiben unsichtbar, auch wenn ein Tab erst später dorthin wechselt.
-      return this.visible(page.url(), settings) && this.visible(info.url, settings) ? { page, info } : null;
-    }))).filter(Boolean);
-    for (const [id, page] of this.pages) if (!found.some(item => item.page === page)) this.pages.delete(id);
-    return found.map(({ page, info }) => ({ tabId: this.id(this.pages, page, 'tab'), title: info.title, url: page.url() }));
+    // Nur auflisten, nicht andocken: Titel und Adressen kommen vom Browser, kein Tab wird dabei geweckt.
+    const found = (await this.targets()).filter(info => (!scope || info.browserContextId === scope.contextId) && this.visible(info.url, settings));
+    for (const [id, targetId] of this.pages) if (!found.some(info => info.targetId === targetId)) this.pages.delete(id);
+    return found.map(info => ({ tabId: this.id(this.pages, info.targetId, 'tab'), title: info.title, url: info.url }));
   }
   // Für die Steuerseite: Adressen aller Tabs, ohne Filter; null, solange keine Verbindung besteht (keine neue Freigabe-Abfrage).
-  openUrls() {
-    if (!this.browser?.isConnected()) return null;
-    return this.browser.contexts().flatMap(context => context.pages()).map(page => page.url());
+  async openUrls() {
+    if (!this.browser?.isConnected() || !this.cdp) return null;
+    return (await this.targets()).map(info => info.url);
+  }
+  // Dockt erst jetzt an genau diesen Tab an und liefert die Playwright-Seite dazu.
+  async attachPage(targetId) {
+    const cached = this.byTarget.get(targetId);
+    if (cached && !cached.isClosed()) return cached;
+    const browser = await this.connect();
+    await this.gate.allow(targetId);
+    for (const until = Date.now() + 10000; Date.now() < until; await new Promise(r => setTimeout(r, 100))) {
+      for (const candidate of browser.contexts().flatMap(context => context.pages())) {
+        if ((await this.pageTarget(candidate))?.targetId === targetId) { this.byTarget.set(targetId, candidate); return candidate; }
+      }
+    }
+    throw new Error('Could not attach to the tab; call brave_tabs again.');
+  }
+  async targetOf(page) {
+    const targetId = (await this.pageTarget(page))?.targetId;
+    if (targetId) this.byTarget.set(targetId, page);
+    return targetId;
   }
   async page(tabId) {
     await this.tabs();
-    const page = this.pages.get(tabId);
-    if (!page || page.isClosed()) throw new Error('Tab no longer available; call brave_tabs again.');
+    const targetId = this.pages.get(tabId);
+    if (!targetId) throw new Error('Tab no longer available; call brave_tabs again.');
+    const page = await this.attachPage(targetId);
+    if (page.isClosed()) throw new Error('Tab no longer available; call brave_tabs again.');
     return page;
   }
   async frame(tabId, frameId) {
@@ -381,12 +407,7 @@ export class Brave {
       const scope = method === 'open' ? await this.profileScope(settings) : null;
       if (scope) {
         const target = await this.openInProfile(scope.directory, url.href, scope.contextId);
-        for (const until = Date.now() + 10000; !page && Date.now() < until; await new Promise(r => setTimeout(r, 250))) {
-          for (const candidate of (await this.connect()).contexts().flatMap(context => context.pages())) {
-            if ((await this.pageTarget(candidate))?.targetId === target.targetId) { page = candidate; break; }
-          }
-        }
-        if (!page) throw new Error('Opened a tab in the agent profile but could not attach to it.');
+        page = await this.attachPage(target.targetId).catch(() => { throw new Error('Opened a tab in the agent profile but could not attach to it.'); });
         this.opened.add(page);
         await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
       } else {
@@ -401,15 +422,17 @@ export class Brave {
         if (method === 'open') { this.opened.delete(page); await page.close().catch(() => {}); }
         throw failed ?? new Error(HIDDEN);
       }
-      return { tabId: this.id(this.pages, page, 'tab'), url: page.url() };
+      return { tabId: this.id(this.pages, await this.targetOf(page), 'tab'), url: page.url() };
     }
     if (method === 'close') {
       // Nur Tabs schließen, die ein Agent selbst mit brave_open geöffnet hat; Tabs des Nutzers bleiben unberührt.
       const page = await this.page(args.tabId);
       if (!this.opened.has(page)) throw new Error('Only tabs opened with brave_open can be closed.');
+      const targetId = await this.targetOf(page);
       await page.close();
       this.opened.delete(page);
-      for (const [id, item] of this.pages) if (item === page) this.pages.delete(id);
+      this.byTarget.delete(targetId);
+      for (const [id, item] of this.pages) if (item === targetId) this.pages.delete(id);
       return { closed: true };
     }
     throw new Error('Unknown browser function.');
