@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Brave, localEndpoint, API_VERSION, pageControls, stripIcons, uploadPaths, profileDirectory, frameVisible, embedsForbidden } from '../src/browser.mjs';
+import { Brave, localEndpoint, API_VERSION, pageControls, stripIcons, uploadPaths, profileDirectory, frameVisible, embedsForbidden, redactUrl, validKey, detectBrave, userDataDirOf, BRAVE_VARIANTS } from '../src/browser.mjs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -113,4 +113,41 @@ test('Agenten-Profil wird über seinen Anzeigenamen gefunden, fehlendes Profil e
     assert.equal(await profileDirectory('Agent', tmp), 'Profile 3');
     await assert.rejects(profileDirectory('Fehlt', tmp), /profile icon → Add/);
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+test('Netzwerkprotokoll schwärzt Zugangsdaten in Adressen', () => {
+  const url = redactUrl('https://user:pw@api.example/v1?q=hallo&access_token=abc&sessionId=1&page=2#id_token=xyz');
+  assert.ok(!/abc|xyz|user|pw@/.test(url), url);
+  assert.match(url, /q=hallo/); assert.match(url, /page=2/); assert.match(url, /access_token=REDACTED/);
+});
+test('Tasten: nur benannte Tasten und Kombinationen, keine freien Zeichenketten', () => {
+  for (const key of ['Enter', 'Tab', 'ArrowDown', 'Control+a', 'Meta+Shift+P', 'F5', 'Escape', 'a', '/']) assert.ok(validKey(key), key);
+  for (const key of ['rm -rf', 'Enter Enter', 'Super+L', '', 'Control+Alt+Shift+Meta+x', 'javascript:alert(1)']) assert.ok(!validKey(key), key);
+});
+test('Debug-Werkzeuge verweigern ohne Freigabe des Nutzers', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'brave-mcp-debug-'));
+  process.env.BRAVE_MCP_SETTINGS = path.join(dir, 'settings.json');
+  try {
+    const brave = new Brave();
+    let touched = false;
+    brave.page = async () => { touched = true; return {}; };
+    for (const method of ['console', 'network', 'eval']) await assert.rejects(brave.call(method, { tabId: 'tab-a', expression: '1' }), /switched off/);
+    assert.equal(touched, false, 'kein Tab angefasst');
+  } finally { delete process.env.BRAVE_MCP_SETTINGS; await fs.rm(dir, { recursive: true, force: true }); }
+});
+test('Brave-Variante: aktive Freigabe zuerst, sonst installierte, Pfade je Plattform', async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), 'brave-mcp-detect-'));
+  try {
+    const env = {};
+    assert.equal((await detectBrave({ platform: 'linux', home, env })).name, 'nightly', 'nichts installiert: Nightly als Vorgabe');
+    const stable = userDataDirOf(BRAVE_VARIANTS[2], 'linux', home);
+    await fs.mkdir(stable, { recursive: true });
+    assert.equal((await detectBrave({ platform: 'linux', home, env })).name, 'stable');
+    const beta = userDataDirOf(BRAVE_VARIANTS[1], 'linux', home);
+    await fs.mkdir(beta, { recursive: true }); await fs.writeFile(path.join(beta, 'DevToolsActivePort'), '1\n/devtools/browser/x\n');
+    const found = await detectBrave({ platform: 'linux', home, env });
+    assert.equal(found.name, 'beta', 'Variante mit aktiver Freigabe gewinnt'); assert.equal(found.bin, 'brave-browser-beta');
+    assert.match(userDataDirOf(BRAVE_VARIANTS[2], 'darwin', '/Users/x'), /Library\/Application Support\/BraveSoftware\/Brave-Browser$/);
+    assert.match(userDataDirOf(BRAVE_VARIANTS[0], 'win32', 'C:/Users/x', 'C:/L'), /Brave-Browser-Nightly.User Data$/);
+  } finally { await fs.rm(home, { recursive: true, force: true }); }
 });

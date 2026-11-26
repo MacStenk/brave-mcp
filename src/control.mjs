@@ -25,6 +25,11 @@ export async function applyAction(form, file = settingsPath()) {
     if (!name || name.length > 100) throw new Error('Enter the profile name as shown in Brave.');
     return updateSettings(s => { s.profile = name; }, file);
   }
+  if (action === 'debug') {
+    const value = form.get('debug');
+    if (!['on', 'off'].includes(value)) throw new Error('Unknown debug setting.');
+    return updateSettings(s => { s.debug = value === 'on'; }, file);
+  }
   if (action === 'block') {
     const site = normalizeSite(form.get('site'));
     return updateSettings(s => { if (!s.blocked.includes(site)) s.blocked.push(site); s.blocked.sort(); }, file);
@@ -36,7 +41,7 @@ export async function applyAction(form, file = settingsPath()) {
   throw new Error('Unknown action.');
 }
 
-function render({ mode, profile, blocked }, urls, token) {
+function render({ mode, profile, blocked, debug }, urls, token) {
   const hidden = `<input type="hidden" name="token" value="${token}">`;
   const button = (fields, label) => `<form method="post">${hidden}${Object.entries(fields).map(([k, v]) => `<input type="hidden" name="${k}" value="${escape(v)}">`).join('')}<button>${escape(label)}</button></form>`;
   const sites = urls === null ? null : [...new Set(urls.filter(url => /^https?:/.test(url) && !isControl(url)).map(host).filter(Boolean))].sort();
@@ -65,6 +70,12 @@ ${button({ action: 'mode', mode: 'all' }, 'All profiles').replace('<button>', `<
 ${button({ action: 'mode', mode: 'agent' }, `Only profile “${profile}”`).replace('<button>', `<button aria-pressed="${mode === 'agent'}">`)}
 </div>
 <div><form method="post">${hidden}<input type="hidden" name="action" value="profile"><label>Agent profile name <input type="text" name="profile" value="${escape(profile)}" required maxlength="100"></label> <button>Save</button></form></div>
+<h2>Debug tools for agents</h2>
+<p class="muted">Console, network log and JavaScript in agent tabs. JavaScript runs inside your logged-in profile; a page with hidden instructions could try to misuse it. Switch on only while you need it.</p>
+<div class="modes">
+${button({ action: 'debug', debug: 'off' }, 'Off').replace('<button>', `<button aria-pressed="${!debug}">`)}
+${button({ action: 'debug', debug: 'on' }, 'On').replace('<button>', `<button aria-pressed="${!!debug}">`)}
+</div>
 <h2>Open websites</h2>
 ${openList}
 <h2>Blocked for agents</h2>

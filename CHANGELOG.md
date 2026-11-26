@@ -9,7 +9,22 @@ promises and which versions get fixes.
 
 ## [Unreleased]
 
+### Added
+
+- `brave_click` accepts a point `x`/`y` (CSS pixels) for canvas apps, maps and charts;
+  `screenshotWidth` converts coordinates from a downscaled screenshot. `brave_screenshot`
+  returns the size of the visible area. Coordinates are refused on pages that embed a blocked site.
+- New tools `brave_hover`, `brave_drag` and `brave_key` (named keys and combinations only, page only).
+- Debug tools `brave_console`, `brave_network` (no headers or bodies, secret-looking URL
+  parameters redacted) and `brave_eval`. Off by default; only the user switches them on with
+  `npx brave-session-mcp debug on` or the control page.
+- Brave Stable and Beta are detected automatically (the variant with remote debugging first);
+  `BRAVE_BIN` for Linux. Agent mode on Linux (untested).
+- Live test `test/interact.mjs` for coordinates, hover, drag, keys and debug tools.
+
 ### Changed
+
+- API version 10: older background processes are reported as outdated.
 
 - New CDP gate (`src/gate.mjs`) between Playwright and Brave. Until now
   `connectOverCDP` attached to every open tab of every profile when connecting.
@@ -22,7 +37,6 @@ promises and which versions get fixes.
   (previously all 43), `brave_open` 0.6 s instead of about 6 s, `brave_read` 22 ms.
 - The gate listens on `127.0.0.1` on a random port with a random path and accepts
   exactly one connection (Playwright in the same process). Agents cannot open its address.
-- API version 9: older background processes are reported as outdated.
 - New live test `test/edge.mjs`: iframe of a foreign site (own process), popup
   opened from an agent tab, and a real page (GitHub repo: read, filter, click, screenshot).
 

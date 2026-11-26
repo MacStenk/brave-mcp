@@ -8,7 +8,7 @@ gemeinsamer Hintergrundprozess hält die Debugging-Verbindung für alle lokalen
 MCP-Clients offen; ein neuer Agent braucht dadurch nicht bei jeder Anfrage eine
 neue Brave-Freigabe.
 
-**Status:** früh, aktiv gepflegt von einer Person · getestet auf macOS mit Brave Nightly; Linux plausibel, ungetestet · Lizenz: [MIT](LICENSE)
+**Status:** früh, aktiv gepflegt von einer Person · getestet auf macOS mit Brave Nightly; Brave Stable/Beta werden automatisch erkannt; Agent-Modus unter Linux eingebaut, aber ungetestet · Lizenz: [MIT](LICENSE)
 
 [![npm](https://img.shields.io/npm/v/brave-session-mcp)](https://www.npmjs.com/package/brave-session-mcp) [![Release](https://img.shields.io/github/v/release/MacStenk/brave-mcp)](https://github.com/MacStenk/brave-mcp/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A5%2022-339933.svg)](package.json)
 
@@ -61,9 +61,10 @@ npx brave-session-mcp block add bank.example   # sperren; ohne Domain: der vorde
 npx brave-session-mcp block remove bank.example
 npx brave-session-mcp block                    # Liste zeigen
 npx brave-session-mcp mode agent               # oder: all; ohne Angabe: anzeigen
+npx brave-session-mcp debug on                 # oder: off; ohne Angabe: anzeigen
 ```
 
-Die Einstellungen liegen in `~/.config/brave-mcp/settings.json` (verschieben mit `BRAVE_MCP_SETTINGS`) und werden bei jeder Agenten-Aktion neu gelesen. Agenten haben kein Werkzeug, um sie zu ändern. Eine fehlerhafte Datei (kein gültiges JSON, ein unbekannter `mode`, ein Eintrag in `blocked`, der keine Domain ist) lässt alle Werkzeuge mit einem Fehler abbrechen, statt still alles zu erlauben. Ohne gespeicherten Modus startet `BRAVE_MCP_PROFILE=Agent` im Agent-Modus. `BRAVE_MCP_CONTROL_PORT` ändert den Port, `BRAVE_APP` nennt die zu öffnende Brave-App (Standard `Brave Browser Nightly`).
+Die Einstellungen liegen in `~/.config/brave-mcp/settings.json` (verschieben mit `BRAVE_MCP_SETTINGS`) und werden bei jeder Agenten-Aktion neu gelesen. Agenten haben kein Werkzeug, um sie zu ändern. Eine fehlerhafte Datei (kein gültiges JSON, ein unbekannter `mode`, ein Eintrag in `blocked`, der keine Domain ist) lässt alle Werkzeuge mit einem Fehler abbrechen, statt still alles zu erlauben. Ohne gespeicherten Modus startet `BRAVE_MCP_PROFILE=Agent` im Agent-Modus. `BRAVE_MCP_CONTROL_PORT` ändert den Port. Die Brave-Variante wird automatisch erkannt: die mit eingeschaltetem Remote Debugging, sonst die erste installierte aus Nightly, Beta, Stable. `BRAVE_USER_DATA_DIR`, `BRAVE_APP` (App-Name unter macOS) und `BRAVE_BIN` (Befehl unter Linux) überschreiben die Erkennung. Der Agent-Modus läuft unter macOS und Linux (Linux ungetestet).
 
 ## Clients
 
@@ -97,6 +98,24 @@ Verzeichniseintrag angelegt. Lizenz: MIT, siehe LICENSE.
 | `brave_navigate` | Einen gewählten Tab zu HTTP(S) navigieren, optional mit Wartezeit |
 | `brave_open` | Eine Adresse in einem neuen Tab öffnen, optional mit Wartezeit |
 | `brave_close` | Einen selbst mit `brave_open` geöffneten Tab schließen; Tabs des Nutzers bleiben unberührt |
+| `brave_hover` | Maus über ein Element oder einen Punkt bewegen (Hover-Menüs, Tooltips) |
+| `brave_drag` | Von einem Element oder Punkt zu einem Element oder Punkt ziehen (Schieberegler, sortierbare Listen, Canvas) |
+| `brave_key` | Text tippen und Tasten oder Kombinationen drücken (`Enter`, `ArrowDown`, `Control+a`), nur in der Seite |
+| `brave_console` | Debug, standardmäßig aus: Konsolenmeldungen und Seitenfehler eines Tabs |
+| `brave_network` | Debug, standardmäßig aus: Anfragen mit Methode, Status und Typ; keine Header oder Inhalte, Zugangsdaten in Adressen geschwärzt |
+| `brave_eval` | Debug, standardmäßig aus: einen JavaScript-Ausdruck in einem Tab oder Frame auswerten |
+
+`brave_click` nimmt auch einen Punkt `x`/`y` in CSS-Pixeln des sichtbaren Bereichs, für
+Canvas-Apps, Karten und Diagramme ohne anklickbares Element. `brave_screenshot` liefert neben
+dem Bild die Größe des sichtbaren Bereichs; Koordinaten aus einem verkleinerten Screenshot
+werden umgerechnet, wenn du dessen Breite als `screenshotWidth` mitgibst. Auf einer Seite,
+die eine gesperrte Seite einbettet, werden Koordinaten abgelehnt.
+
+**Debug-Werkzeuge** (`brave_console`, `brave_network`, `brave_eval`) sind standardmäßig aus,
+und nur du schaltest sie ein: `npx brave-session-mcp debug on` oder die Steuerseite; Agenten
+haben dafür kein Werkzeug. JavaScript läuft dann in deinem angemeldeten Profil, und eine Seite
+mit versteckten Anweisungen könnte versuchen, einen Agenten zum Missbrauch zu bringen. Nur zum
+Debuggen einschalten und danach wieder mit `npx brave-session-mcp debug off` ausschalten.
 
 Zuerst `brave_tabs`, danach `brave_read` mit einer konkreten Tab-ID aufrufen.
 `brave_read` nennt `charsTotal` und `nextCharOffset`; mit `charOffset` blättern
@@ -241,6 +260,7 @@ Korrekturen bekommen: [RELEASES.md](RELEASES.md) (Englisch).
 pnpm test
 node test/smoke.mjs
 node test/edge.mjs
+node test/interact.mjs
 node test/tokens.mjs
 ```
 

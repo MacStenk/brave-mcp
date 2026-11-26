@@ -13,11 +13,29 @@ export function localEndpoint(portFile) {
   return `ws://127.0.0.1:${+port}${route}`;
 }
 
-function profile() {
-  if (process.env.BRAVE_USER_DATA_DIR) return process.env.BRAVE_USER_DATA_DIR;
-  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library/Application Support/BraveSoftware/Brave-Browser-Nightly');
-  if (process.platform === 'win32') return path.join(process.env.LOCALAPPDATA, 'BraveSoftware/Brave-Browser-Nightly/User Data');
-  return path.join(os.homedir(), '.config/BraveSoftware/Brave-Browser-Nightly');
+// Brave-Varianten in Suchreihenfolge. Gewählt wird die mit aktiver Debugging-Freigabe (DevToolsActivePort),
+// sonst die erste installierte. BRAVE_USER_DATA_DIR, BRAVE_APP und BRAVE_BIN überschreiben die Erkennung.
+export const BRAVE_VARIANTS = [
+  { name: 'nightly', dir: 'Brave-Browser-Nightly', app: 'Brave Browser Nightly', bin: 'brave-browser-nightly' },
+  { name: 'beta', dir: 'Brave-Browser-Beta', app: 'Brave Browser Beta', bin: 'brave-browser-beta' },
+  { name: 'stable', dir: 'Brave-Browser', app: 'Brave Browser', bin: 'brave-browser' },
+];
+export function userDataDirOf(variant, platform = process.platform, home = os.homedir(), localAppData = process.env.LOCALAPPDATA) {
+  if (platform === 'darwin') return path.join(home, 'Library/Application Support/BraveSoftware', variant.dir);
+  if (platform === 'win32') return path.join(localAppData || path.join(home, 'AppData/Local'), 'BraveSoftware', variant.dir, 'User Data');
+  return path.join(home, '.config/BraveSoftware', variant.dir);
+}
+const exists = file => fs.access(file).then(() => true, () => false);
+export async function detectBrave({ platform = process.platform, home = os.homedir(), env = process.env } = {}) {
+  if (env.BRAVE_USER_DATA_DIR) {
+    const known = BRAVE_VARIANTS.find(v => env.BRAVE_USER_DATA_DIR.includes(v.dir + path.sep) || env.BRAVE_USER_DATA_DIR.endsWith(v.dir)) ?? BRAVE_VARIANTS[0];
+    return { ...known, userDataDir: env.BRAVE_USER_DATA_DIR, app: env.BRAVE_APP || known.app, bin: env.BRAVE_BIN || known.bin };
+  }
+  const candidates = BRAVE_VARIANTS.map(v => ({ ...v, userDataDir: userDataDirOf(v, platform, home, env.LOCALAPPDATA) }));
+  const pick = (await Promise.all(candidates.map(async c => (await exists(path.join(c.userDataDir, 'DevToolsActivePort'))) && c))).find(Boolean)
+    ?? (await Promise.all(candidates.map(async c => (await exists(c.userDataDir)) && c))).find(Boolean)
+    ?? candidates[0];
+  return { ...pick, app: env.BRAVE_APP || pick.app, bin: env.BRAVE_BIN || pick.bin };
 }
 
 const describe = element => {
@@ -94,8 +112,9 @@ export function pageControls(items, { controlOffset = 0, maxControls = 200, cont
 // 6: BRAVE_MCP_PROFILE beschränkt alle Werkzeuge auf ein Brave-Profil, brave_open öffnet dort.
 // 7: Sperrliste und umschaltbarer Agent-Modus (Steuerseite, settings.json); gesperrte Seiten sind unsichtbar.
 // 8: Nur http(s)-Seiten sichtbar, Lesen ohne Warten mit Nachprüfung, Screenshots ohne Seitenskript, Steuerseite mit Schlüssel.
+// 10: Koordinaten-Klick, Hover, Ziehen, Tasten; Debug-Werkzeuge (nur vom Nutzer einschaltbar); Brave Stable/Beta/Linux.
 // 9: Torwächter (gate.mjs): angedockt wird nur an Tabs, die ein Agent benutzt; Auflisten weckt keine Tabs.
-export const API_VERSION = 9;
+export const API_VERSION = 10;
 
 // Entfernt Icon-Zeichen aus Webfonts; Zeilen, die nur aus Icons bestanden, verschwinden mit, echte Leerzeilen bleiben.
 export function stripIcons(text) {
@@ -130,28 +149,54 @@ export async function uploadPaths(files, root = uploadRoot()) {
 
 // Agenten-Profil: Im Agent-Modus sehen alle Werkzeuge nur die Tabs dieses Brave-Profils,
 // und brave_open öffnet dort. Das Profil legt der Nutzer selbst in Brave an; hier wird es nur gelesen.
-export async function profileDirectory(name, userDataDir = profile()) {
+export async function profileDirectory(name, userDataDir) {
+  userDataDir ??= (await detectBrave()).userDataDir;
   const state = JSON.parse(await fs.readFile(path.join(userDataDir, 'Local State'), 'utf8').catch(() => '{}'));
   const entry = Object.entries(state.profile?.info_cache ?? {}).find(([, info]) => info.name === name);
   if (!entry) throw new Error(`Brave profile "${name}" not found (agent mode). Create it in Brave: profile icon → Add, name it "${name}", then try again. Or switch brave-mcp back to all profiles.`);
   return entry[0];
 }
-function launchInProfile(directory, url) {
+async function launchInProfile(directory, url) {
   // Über das Betriebssystem öffnen: Die Debugging-Schnittstelle kann keine Tabs in einem anderen Profil anlegen.
-  if (process.platform !== 'darwin') throw new Error('Agent mode currently works on macOS only.');
-  const app = process.env.BRAVE_APP || 'Brave Browser Nightly';
-  return new Promise((resolve, reject) => execFile('open', ['-na', app, '--args', `--profile-directory=${directory}`, url], error => error ? reject(new Error(`Could not open ${app}: ${error.message}`)) : resolve()));
+  const brave = await detectBrave();
+  if (process.platform === 'darwin') {
+    return new Promise((resolve, reject) => execFile('open', ['-na', brave.app, '--args', `--profile-directory=${directory}`, url], error => error ? reject(new Error(`Could not open ${brave.app}: ${error.message}`)) : resolve()));
+  }
+  if (process.platform === 'linux') {
+    // Ein laufendes Brave übernimmt den Aufruf und öffnet den Tab im genannten Profil (ungetestet, siehe README).
+    return new Promise((resolve, reject) => execFile(brave.bin, [`--profile-directory=${directory}`, url], { timeout: 10000 }, error => error ? reject(new Error(`Could not open ${brave.bin}: ${error.message}`)) : resolve()));
+  }
+  throw new Error('Agent mode works on macOS and Linux only.');
 }
+
+// Werte von Parametern, die nach Zugangsdaten aussehen, aus Adressen entfernen (Netzwerkprotokoll für Agenten).
+const SECRET_PARAM = /token|key|secret|auth|session|sig|pass|code|jwt|credential|ticket/i;
+export function redactUrl(raw) {
+  try {
+    const url = new URL(raw);
+    url.username = ''; url.password = '';
+    for (const name of [...url.searchParams.keys()]) if (SECRET_PARAM.test(name)) url.searchParams.set(name, 'REDACTED');
+    if (url.hash.length > 1) url.hash = '#REDACTED';
+    return url.href;
+  } catch { return String(raw).slice(0, 200); }
+}
+// Tastennamen wie Enter, ArrowDown, Control+a, Meta+Shift+P; keine freien Zeichenketten.
+export function validKey(key) {
+  return typeof key === 'string' && /^((Control|Shift|Alt|Meta|ControlOrMeta)\+){0,3}([A-Za-z0-9]|F[1-9]|F1[0-2]|Enter|Tab|Escape|Backspace|Delete|Space|Home|End|PageUp|PageDown|Insert|Arrow(Up|Down|Left|Right)|[\-=,.\/;'\[\]`])$/.test(key);
+}
+const DEBUG_OFF = 'Debug tools are switched off. Only the user can switch them on: npx brave-session-mcp debug on';
+const RING = 300;
 
 export class Brave {
   pages = new Map(); frames = new Map(); refs = new Map(); opened = new Set(); connections = 0;
-  contextOf = new WeakMap(); byTarget = new Map();
+  contextOf = new WeakMap(); byTarget = new Map(); logs = new WeakMap();
   async connect() {
     if (this.browser?.isConnected()) return this.browser;
     // Nach Browserende neu verbinden, statt --stop zu verlangen; die Freigabe erteilt der Nutzer in Brave.
     this.browser = undefined; this.cdp = undefined; this.scope = undefined; this.byTarget = new Map();
     this.gate?.close(); this.gate = undefined;
-    const portFile = await fs.readFile(path.join(profile(), 'DevToolsActivePort'), 'utf8').catch(() => {
+    this.brave = await detectBrave();
+    const portFile = await fs.readFile(path.join(this.brave.userDataDir, 'DevToolsActivePort'), 'utf8').catch(() => {
       throw new Error('Brave remote debugging not found. Open brave://inspect/#remote-debugging in Brave and enable it.');
     });
     const endpoint = localEndpoint(portFile);
@@ -254,10 +299,21 @@ export class Brave {
     await this.gate.allow(targetId);
     for (const until = Date.now() + 10000; Date.now() < until; await new Promise(r => setTimeout(r, 100))) {
       for (const candidate of browser.contexts().flatMap(context => context.pages())) {
-        if ((await this.pageTarget(candidate))?.targetId === targetId) { this.byTarget.set(targetId, candidate); return candidate; }
+        if ((await this.pageTarget(candidate))?.targetId === targetId) { this.byTarget.set(targetId, candidate); this.watch(candidate); return candidate; }
       }
     }
     throw new Error('Could not attach to the tab; call brave_tabs again.');
+  }
+  // Konsole und Netzwerk eines angedockten Tabs mitschreiben (Ringpuffer); ausgeliefert nur bei eingeschalteten Debug-Werkzeugen.
+  watch(page) {
+    if (this.logs.has(page)) return;
+    const log = { console: [], network: [] };
+    this.logs.set(page, log);
+    const push = (list, entry) => { list.push({ at: new Date().toISOString(), ...entry }); if (list.length > RING) list.shift(); };
+    page.on('console', message => push(log.console, { type: message.type(), text: message.text().slice(0, 2000) }));
+    page.on('pageerror', error => push(log.console, { type: 'pageerror', text: String(error.message).slice(0, 2000) }));
+    page.on('response', response => { const request = response.request(); push(log.network, { method: request.method(), url: redactUrl(request.url()), status: response.status(), type: request.resourceType() }); });
+    page.on('requestfailed', request => push(log.network, { method: request.method(), url: redactUrl(request.url()), failed: request.failure()?.errorText ?? 'failed', type: request.resourceType() }));
   }
   async targetOf(page) {
     const targetId = (await this.pageTarget(page))?.targetId;
@@ -357,10 +413,49 @@ export class Brave {
     if (current.tag !== item.description.tag || current.label !== item.description.label) throw new Error('Element has changed; call brave_read again.');
     return item.element;
   }
+  // Breite des sichtbaren Bereichs in CSS-Pixeln (Bezug für Koordinaten aus verkleinerten Screenshots).
+  async viewport(page) {
+    const session = await page.context().newCDPSession(page);
+    try { const { cssVisualViewport: v } = await session.send('Page.getLayoutMetrics'); return { width: Math.floor(v.clientWidth), height: Math.floor(v.clientHeight) }; }
+    finally { await session.detach().catch(() => {}); }
+  }
+  // Zielpunkt aus Elementreferenz oder Koordinaten (CSS-Pixel des sichtbaren Bereichs, wie im Screenshot ohne width;
+  // mit screenshotWidth werden Koordinaten aus einem verkleinerten Screenshot umgerechnet).
+  async point(tabId, { ref, x, y, screenshotWidth } = {}) {
+    const page = await this.page(tabId);
+    if (ref) {
+      const element = await this.element(tabId, ref);
+      await element.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+      const box = await element.boundingBox();
+      if (!box) throw new Error('Element has no visible area.');
+      return { page, element, x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    }
+    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error('Give either ref or both x and y.');
+    const { blocked } = await loadSettings();
+    // Mit gesperrtem Frame auf der Seite keine Koordinaten: Ein Punkt könnte darin landen.
+    if (embedsForbidden(page, blocked, this.devtoolsPort)) throw new Error('This page embeds a site blocked for agents; use element references instead of coordinates.');
+    const view = await this.viewport(page);
+    const factor = screenshotWidth ? view.width / screenshotWidth : 1;
+    const px = x * factor, py = y * factor;
+    if (px < 0 || py < 0 || px > view.width || py > view.height) throw new Error(`Point outside the visible area (${view.width}×${view.height} CSS pixels).`);
+    return { page, x: px, y: py };
+  }
+  async debugOn() {
+    if (!(await loadSettings()).debug) throw new Error(DEBUG_OFF);
+  }
   async call(method, args = {}) {
-    if (method === 'status') return { connected: !!this.browser?.isConnected(), browserConnections: this.connections, daemonPid: process.pid, apiVersion: API_VERSION, controlPage: this.control ?? null };
+    if (method === 'status') {
+      const settings = await loadSettings().catch(() => null);
+      return { connected: !!this.browser?.isConnected(), browserConnections: this.connections, daemonPid: process.pid, apiVersion: API_VERSION, controlPage: this.control ?? null, brave: this.brave?.name ?? (await detectBrave()).name, debugTools: !!settings?.debug };
+    }
     if (method === 'tabs') return this.tabs();
     if (method === 'read') return this.read(args);
+    if (method === 'click' && !args.ref) {
+      const target = await this.point(args.tabId, args);
+      await target.page.mouse.click(target.x, target.y, { button: args.button || 'left', clickCount: args.clickCount || 1 });
+      await this.settle(target.page, args.wait);
+      return { clicked: true, x: Math.round(target.x), y: Math.round(target.y) };
+    }
     if (method === 'click') {
       const element = await this.element(args.tabId, args.ref);
       const page = await this.page(args.tabId);
@@ -383,9 +478,52 @@ export class Brave {
         }
         return { clicked: true, ...(after && 'checked' in after ? { checked: after.checked } : {}) };
       }
-      await element.click({ timeout: 8000 });
+      await element.click({ timeout: 8000, button: args.button || 'left', clickCount: args.clickCount || 1 });
       await this.settle(page, args.wait);
       return { clicked: true };
+    }
+    if (method === 'hover') {
+      const target = await this.point(args.tabId, args);
+      if (target.element) await target.element.hover({ timeout: 8000 }); else await target.page.mouse.move(target.x, target.y);
+      await this.settle(target.page, args.wait || 300);
+      return { hovered: true };
+    }
+    if (method === 'drag') {
+      const from = await this.point(args.tabId, { ref: args.fromRef, x: args.fromX, y: args.fromY, screenshotWidth: args.screenshotWidth });
+      const to = await this.point(args.tabId, { ref: args.toRef, x: args.toX, y: args.toY, screenshotWidth: args.screenshotWidth });
+      const { mouse } = from.page;
+      await mouse.move(from.x, from.y); await mouse.down();
+      await mouse.move(to.x, to.y, { steps: 15 }); await mouse.up();
+      await this.settle(from.page, args.wait || 300);
+      return { dragged: true };
+    }
+    if (method === 'key') {
+      if (!args.keys?.length && !args.text) throw new Error('Give keys or text.');
+      for (const key of args.keys ?? []) if (!validKey(key)) throw new Error(`Unknown key "${String(key).slice(0, 40)}". Examples: Enter, Tab, ArrowDown, Control+a, Meta+k.`);
+      const page = await this.page(args.tabId);
+      if (args.ref) await (await this.element(args.tabId, args.ref)).focus();
+      if (args.text) await page.keyboard.type(args.text);
+      for (const key of args.keys ?? []) await page.keyboard.press(key);
+      await this.settle(page, args.wait);
+      return { pressed: (args.keys ?? []).length, typed: (args.text ?? '').length };
+    }
+    if (method === 'console' || method === 'network') {
+      await this.debugOn();
+      const page = await this.page(args.tabId);
+      const entries = this.logs.get(page)?.[method] ?? [];
+      const filter = args.filter?.toLowerCase();
+      const matching = entries.filter(entry => (!args.onlyErrors || (method === 'console' ? ['error', 'pageerror'].includes(entry.type) : (entry.failed || entry.status >= 400))) && (!filter || JSON.stringify(entry).toLowerCase().includes(filter)));
+      return { tabId: args.tabId, total: matching.length, entries: matching.slice(-(args.limit || 50)), note: 'Recorded since the server attached to this tab; reload the page to capture its start.' };
+    }
+    if (method === 'eval') {
+      await this.debugOn();
+      const { page, frame, settings } = await this.frame(args.tabId, args.frameId);
+      let timer;
+      const value = await Promise.race([frame.evaluate(args.expression), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Evaluation timed out after 10 seconds.')), 10000); })]).finally(() => clearTimeout(timer));
+      if (!this.unchanged(page, frame, settings)) throw new Error(CHANGED);
+      let text;
+      try { text = JSON.stringify(value) ?? 'undefined'; } catch { text = String(value); }
+      return { result: text.length > 12000 ? text.slice(0, 12000) : text, truncated: text.length > 12000 };
     }
     if (method === 'fill') { await (await this.element(args.tabId, args.ref)).fill(args.text, { timeout: 8000 }); return { filled: true }; }
     if (method === 'upload') {
@@ -394,8 +532,10 @@ export class Brave {
       await element.setInputFiles(await uploadPaths(args.files), { timeout: 10000 }); return { uploaded: args.files.length };
     }
     if (method === 'screenshot') {
-      const { buffer, mimeType } = await this.shot(await this.page(args.tabId), args.width);
-      return { image: buffer.toString('base64'), mimeType };
+      const page = await this.page(args.tabId);
+      const { buffer, mimeType } = await this.shot(page, args.width);
+      const view = await this.viewport(page).catch(() => null);
+      return { image: buffer.toString('base64'), mimeType, ...(view ? { viewport: view, imageWidth: args.width || view.width } : {}) };
     }
     if (method === 'navigate' || method === 'open') {
       const url = new URL(args.url);
@@ -412,7 +552,7 @@ export class Brave {
         await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
       } else {
         page = method === 'open' ? await (await this.connect()).contexts()[0].newPage() : await this.page(args.tabId);
-        if (method === 'open') this.opened.add(page);
+        if (method === 'open') { this.opened.add(page); this.watch(page); }
         await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(error => { failed = error; });
       }
       if (!failed) await this.settle(page, args.wait);

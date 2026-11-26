@@ -30,7 +30,7 @@ async function call(client, name, args = {}) {
 }
 try {
   const a = await client('Test-Agent-A'), b = await client('Test-Agent-B');
-  assert.equal((await a.listTools()).tools.length, 10);
+  assert.equal((await a.listTools()).tools.length, 16);
   const { tabId } = await call(a, 'brave_open', { url: `http://127.0.0.1:${fixture.address().port}/` });
   const read = await call(a, 'brave_read', { tabId });
   const ref = label => read.controls.find(control => control.label === label).ref;
@@ -81,7 +81,7 @@ try {
   // Den eigenen Testtab schließen; fremde Tabs bleiben unverändert.
   assert.deepEqual(await call(a, 'brave_close', { tabId }), { closed: true });
   assert.ok(!(await call(a, 'brave_tabs')).some(t => t.tabId === tabId), 'Testtab ist geschlossen');
-  console.log(JSON.stringify({ ok: true, tools: 10, clients: 2, browserConnections: 1, checks: ['initialize', 'tools/list', 'fill', 'trusted click', 'hidden upload', 'iframe', 'charOffset paging', 'wait after click navigation', 'control paging', 'control filter', 'switch state', 'covered checkbox', 'screenshot', 'scaled screenshot', 'version handshake', 'client sharing', 'URL validation', 'icon stripping', 'close own tab'] }));
+  console.log(JSON.stringify({ ok: true, tools: 16, clients: 2, browserConnections: 1, checks: ['initialize', 'tools/list', 'fill', 'trusted click', 'hidden upload', 'iframe', 'charOffset paging', 'wait after click navigation', 'control paging', 'control filter', 'switch state', 'covered checkbox', 'screenshot', 'scaled screenshot', 'version handshake', 'client sharing', 'URL validation', 'icon stripping', 'close own tab'] }));
 } finally {
   await Promise.allSettled(clients.map(client => client.close()));
   fixture.close();

@@ -6,7 +6,7 @@ A local MCP server that gives your AI agents safe, token-efficient access to the
 
 [![npm](https://img.shields.io/npm/v/brave-session-mcp)](https://www.npmjs.com/package/brave-session-mcp) [![Release](https://img.shields.io/github/v/release/MacStenk/brave-mcp)](https://github.com/MacStenk/brave-mcp/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A5%2022-339933.svg)](package.json)
 
-**Status:** early, actively maintained by one person · tested on macOS with Brave Nightly; Linux plausible, untested · License: [MIT](LICENSE)
+**Status:** early, actively maintained by one person · tested on macOS with Brave Nightly; Brave Stable/Beta are detected automatically; Linux agent mode implemented but untested · License: [MIT](LICENSE)
 
 ## What is this?
 
@@ -18,10 +18,10 @@ A local MCP server that gives your AI agents safe, token-efficient access to the
 
 Attaching an agent to your logged-in browser is no longer unique: [@playwright/mcp](https://github.com/microsoft/playwright-mcp) can connect to existing Chrome or Edge tabs through its browser extension (`--extension`), and [Chrome DevTools MCP](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session) attaches to a running Chrome with `--autoConnect` (Chrome 144+). Use those if you live in Chrome. This server is the Brave-first option and makes different trade-offs:
 
-- **Brave, your real profile** — works with Brave Nightly where you are already logged in; no extension to install, no profile copied. Regular Brave via `BRAVE_USER_DATA_DIR` should work but is untested.
+- **Brave, your real profile** — works with the Brave you are already logged in to (Nightly, Beta or Stable, detected automatically); no extension to install, no profile copied.
 - **One shared connection for all agents** — a single background process serves every local MCP client over one CDP connection, so a second agent does not trigger another permission prompt.
 - **Token-efficient by design** — capped and paged text (`charOffset`), paged and filterable controls (`controlFilter`), waited actions (`wait`), icon characters stripped, CSS-scaled screenshots; measured numbers in the [Token usage](#token-usage) section below.
-- **Small attack surface** — ten narrow tools and no page-script execution; uploads only from one folder; agents can close only tabs they opened; page content is treated as untrusted data.
+- **Small attack surface** — narrow tools and no page-script execution unless you switch on the debug tools yourself; uploads only from one folder; agents can close only tabs they opened; page content is treated as untrusted data.
 
 Not for you when you need headless cross-platform CI automation, or a full DevTools toolbox (network, performance traces, console) — Playwright MCP and Chrome DevTools MCP are the better fit there.
 
@@ -75,9 +75,10 @@ npx brave-session-mcp block add bank.example   # block; without a domain: the fr
 npx brave-session-mcp block remove bank.example
 npx brave-session-mcp block                    # show the list
 npx brave-session-mcp mode agent               # or: all; without argument: show
+npx brave-session-mcp debug on                 # or: off; without argument: show
 ```
 
-Settings live in `~/.config/brave-mcp/settings.json` (`BRAVE_MCP_SETTINGS` to move it) and are read on every agent action. Agents have no tool to change them. A broken file (invalid JSON, an unknown `mode`, a `blocked` entry that is not a domain) makes every tool fail with an error instead of silently allowing everything. Without a saved mode, `BRAVE_MCP_PROFILE=Agent` starts in agent mode. `BRAVE_MCP_CONTROL_PORT` changes the port, `BRAVE_APP` names the Brave app to open (default `Brave Browser Nightly`).
+Settings live in `~/.config/brave-mcp/settings.json` (`BRAVE_MCP_SETTINGS` to move it) and are read on every agent action. Agents have no tool to change them. A broken file (invalid JSON, an unknown `mode`, a `blocked` entry that is not a domain) makes every tool fail with an error instead of silently allowing everything. Without a saved mode, `BRAVE_MCP_PROFILE=Agent` starts in agent mode. `BRAVE_MCP_CONTROL_PORT` changes the port. The Brave variant is detected automatically: the one with remote debugging switched on, otherwise the first installed of Nightly, Beta, Stable. `BRAVE_USER_DATA_DIR`, `BRAVE_APP` (macOS app name) and `BRAVE_BIN` (Linux command) override the detection. Agent mode works on macOS and Linux (Linux untested).
 
 ## Clients
 
@@ -111,6 +112,24 @@ MIT, see LICENSE.
 | `brave_navigate` | Navigate a selected tab to HTTP(S), optionally with wait time |
 | `brave_open` | Open an address in a new tab, optionally with wait time |
 | `brave_close` | Close a tab you opened with `brave_open`; the user's own tabs stay untouched |
+| `brave_hover` | Move the mouse over an element or a point (hover menus, tooltips) |
+| `brave_drag` | Drag from an element or point to an element or point (sliders, sortable lists, canvas) |
+| `brave_key` | Type text and press keys or combinations (`Enter`, `ArrowDown`, `Control+a`) in the page |
+| `brave_console` | Debug, off by default: console messages and page errors of a tab |
+| `brave_network` | Debug, off by default: requests with method, status and type; no headers or bodies, secret-looking URL parameters redacted |
+| `brave_eval` | Debug, off by default: evaluate a JavaScript expression in a tab or frame |
+
+`brave_click` also accepts a point `x`/`y` in CSS pixels of the visible area, for canvas
+apps, maps and charts where there is no element to reference. `brave_screenshot` returns
+the size of the visible area next to the image; coordinates taken from a downscaled
+screenshot are converted when you pass its width as `screenshotWidth`. On a page that embeds
+a blocked site, coordinates are refused.
+
+**Debug tools** (`brave_console`, `brave_network`, `brave_eval`) are off by default and
+only you can switch them on: `npx brave-session-mcp debug on` or the control page; agents
+have no tool for it. JavaScript then runs inside your logged-in profile, and a page with
+hidden instructions could try to talk an agent into misusing it. Switch them on while you
+debug and off again with `npx brave-session-mcp debug off`.
 
 Call `brave_tabs` first, then `brave_read` with a concrete tab ID.
 `brave_read` reports `charsTotal` and `nextCharOffset`; with `charOffset`,
@@ -251,6 +270,7 @@ promises, what counts as breaking and which versions get fixes:
 pnpm test
 node test/smoke.mjs
 node test/edge.mjs
+node test/interact.mjs
 node test/tokens.mjs
 ```
 

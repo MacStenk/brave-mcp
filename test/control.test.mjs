@@ -103,7 +103,15 @@ test('Steuerseite nur mit Schlüssel des Nutzers; Änderungen nur mit eigenem Ho
 
     assert.equal((await post({ action: 'block', site: 'bank.example', token }, { 'Sec-Fetch-Site': 'same-origin' })).status, 303);
     assert.equal((await post({ action: 'mode', mode: 'agent', token })).status, 303);
-    assert.deepEqual(await loadSettings(file), { mode: 'agent', profile: process.env.BRAVE_MCP_PROFILE || 'Agent', blocked: ['bank.example'] });
+    assert.deepEqual(await loadSettings(file), { mode: 'agent', profile: process.env.BRAVE_MCP_PROFILE || 'Agent', blocked: ['bank.example'], debug: false });
+    // Debug-Werkzeuge: standardmäßig aus, nur über die Steuerseite (oder den Befehl) einschaltbar.
+    assert.match(html, /Debug tools for agents/);
+    assert.equal((await post({ action: 'debug', debug: 'on', token }, { Origin: 'https://evil.example' })).status, 403);
+    assert.equal((await loadSettings(file)).debug, false);
+    assert.equal((await post({ action: 'debug', debug: 'on', token })).status, 303);
+    assert.equal((await loadSettings(file)).debug, true);
+    assert.equal((await post({ action: 'debug', debug: 'off', token })).status, 303);
+    assert.equal((await loadSettings(file)).debug, false);
     assert.equal((await post({ action: 'unblock', site: 'bank.example', token })).status, 303);
     assert.deepEqual((await loadSettings(file)).blocked, []);
   } finally {

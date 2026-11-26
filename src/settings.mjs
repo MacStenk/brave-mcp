@@ -41,13 +41,15 @@ export async function loadSettings(file = settingsPath()) {
   if (saved.mode !== undefined && saved.mode !== 'agent' && saved.mode !== 'all') throw new Error(`Settings file ${file}: "mode" must be "agent" or "all".`);
   if (saved.profile !== undefined && (typeof saved.profile !== 'string' || !saved.profile.trim())) throw new Error(`Settings file ${file}: "profile" must be a profile name.`);
   if (saved.blocked !== undefined && !Array.isArray(saved.blocked)) throw new Error(`Settings file ${file}: "blocked" must be a list of domains.`);
+  if (saved.debug !== undefined && typeof saved.debug !== 'boolean') throw new Error(`Settings file ${file}: "debug" must be true or false.`);
   // Ohne gespeicherte Wahl gilt BRAVE_MCP_PROFILE wie bisher als Agent-Modus.
   const mode = saved.mode ?? (process.env.BRAVE_MCP_PROFILE ? 'agent' : 'all');
   const profile = saved.profile || process.env.BRAVE_MCP_PROFILE || 'Agent';
   const blocked = [...new Set((saved.blocked ?? []).map(site => {
     try { return normalizeSite(site); } catch (error) { throw new Error(`Settings file ${file}: ${error.message}`); }
   }))];
-  return { mode, profile, blocked };
+  // Debug-Werkzeuge (Konsole, Netzwerk, JavaScript) nur, wenn der Nutzer sie ausdrücklich einschaltet.
+  return { mode, profile, blocked, debug: saved.debug === true };
 }
 
 // Schreibt nacheinander (Warteschlange im Prozess) und über eindeutige Zwischendateien,
