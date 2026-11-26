@@ -9,6 +9,8 @@ promises and which versions get fixes.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-27
+
 ### Added
 
 - `brave_click` accepts a point `x`/`y` (CSS pixels) for canvas apps, maps and charts;
@@ -157,7 +159,8 @@ a package registry.
 - Element references are bound to their tab and expire after ten minutes; page
   text is returned as untrusted data, and no tool runs page scripts.
 
-[Unreleased]: https://github.com/MacStenk/brave-mcp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/MacStenk/brave-mcp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/MacStenk/brave-mcp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/MacStenk/brave-mcp/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/MacStenk/brave-mcp/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/MacStenk/brave-mcp/compare/v0.2.0...v0.3.0
